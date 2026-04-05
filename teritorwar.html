@@ -1,0 +1,633 @@
+<!DOCTYPE html>
+<html lang="bs">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no, viewport-fit=cover">
+<title>TeritorWar</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+:root{
+  --g:#39ff14;--bg:#050d05;
+  --border:rgba(57,255,20,0.25);--dim:rgba(57,255,20,0.07);
+  --muted:rgba(180,255,180,0.5);--red:#ff3355;--yellow:#ffd700;
+  --panel:rgba(5,13,5,0.97);
+}
+html,body{width:100%;height:100%;overflow:hidden;background:var(--bg);font-family:sans-serif;color:#c8f5c8}
+
+#map{position:fixed;top:0;left:0;width:100%;height:100%;z-index:1}
+.leaflet-tile-pane{filter:brightness(.65) saturate(.5)}
+.leaflet-control-attribution,.leaflet-control-zoom{display:none!important}
+
+/* ── OVERLAY START ── */
+#overlay{
+  position:fixed;top:0;left:0;width:100%;height:100%;
+  background:radial-gradient(ellipse at 50% 40%,#0c1e0c 0%,var(--bg) 70%);
+  z-index:800;display:flex;flex-direction:column;
+  align-items:center;justify-content:center;
+  gap:18px;padding:28px;transition:opacity .5s;
+}
+.logo{
+  font-family:monospace;font-weight:900;font-size:36px;
+  color:var(--g);letter-spacing:5px;text-align:center;
+  text-shadow:0 0 30px var(--g),0 0 80px rgba(57,255,20,.25);
+}
+.logo span{display:block;font-size:13px;letter-spacing:8px;opacity:.6;margin-top:4px}
+.ov-desc{font-size:14px;color:var(--muted);text-align:center;line-height:1.7;max-width:300px}
+#btn-start{
+  margin-top:8px;
+  background:linear-gradient(135deg,rgba(57,255,20,.22),rgba(0,200,81,.12));
+  border:2px solid var(--g);color:var(--g);
+  padding:18px 52px;border-radius:14px;
+  font-family:monospace;font-weight:700;font-size:18px;letter-spacing:3px;
+  cursor:pointer;animation:glow 2s ease-in-out infinite;
+  -webkit-tap-highlight-color:transparent;
+}
+#btn-start:active{transform:scale(.95)}
+@keyframes glow{0%,100%{box-shadow:0 0 18px rgba(57,255,20,.2)}50%{box-shadow:0 0 44px rgba(57,255,20,.55)}}
+.ov-note{
+  font-size:12px;color:var(--yellow);text-align:center;
+  max-width:270px;line-height:1.6;
+  background:rgba(255,215,0,.06);border:1px solid rgba(255,215,0,.2);
+  border-radius:8px;padding:10px 14px;
+}
+#ov-msg{font-size:13px;color:var(--muted);text-align:center;min-height:18px}
+
+/* ── HUD ── */
+#hud{
+  display:none;position:fixed;top:0;left:0;right:0;z-index:400;
+  background:linear-gradient(to bottom,rgba(5,13,5,.96) 55%,transparent);
+  padding:max(12px,env(safe-area-inset-top)) 14px 16px;
+  align-items:center;justify-content:space-between;
+  border-bottom:1px solid var(--border);
+}
+.hud-logo{font-family:monospace;font-weight:900;font-size:17px;color:var(--g);letter-spacing:3px;text-shadow:0 0 12px var(--g)}
+.hud-r{display:flex;align-items:center;gap:8px}
+.chip{background:var(--dim);border:1px solid var(--border);border-radius:5px;padding:4px 9px;font-family:monospace;font-size:11px;color:var(--g)}
+.chip small{display:block;font-size:7px;color:var(--muted);letter-spacing:1px}
+.gpsdot{width:11px;height:11px;border-radius:50%;background:var(--yellow);flex-shrink:0;transition:background .3s}
+.gpsdot.ok{background:var(--g);box-shadow:0 0 8px var(--g)}
+.gpsdot.ok::after{content:'';position:absolute;width:11px;height:11px;border-radius:50%;border:1px solid var(--g);animation:rip 1.5s ease-out infinite}
+.gpsdot.err{background:var(--red)}
+@keyframes rip{0%{transform:scale(1);opacity:1}100%{transform:scale(2.3);opacity:0}}
+
+/* ── PANEL ── */
+#panel{
+  display:none;position:fixed;bottom:0;left:0;right:0;z-index:400;
+  background:var(--panel);border-top:1px solid var(--border);
+  border-radius:18px 18px 0 0;
+  transform:translateY(calc(100% - 62px));
+  transition:transform .35s cubic-bezier(.34,1.56,.64,1);
+  max-height:88vh;
+}
+#panel.open{transform:translateY(0);overflow-y:auto}
+.phandle{
+  padding:10px 16px 10px;cursor:pointer;
+  display:flex;align-items:center;justify-content:space-between;
+  border-bottom:1px solid rgba(57,255,20,.08);
+  position:sticky;top:0;background:var(--panel);z-index:1;
+}
+.dragbar{width:34px;height:3px;background:var(--border);border-radius:2px;position:absolute;left:50%;transform:translateX(-50%);top:7px}
+.plbl{font-family:monospace;font-size:10px;color:var(--muted);letter-spacing:2px}
+.obadge{display:flex;align-items:center;gap:5px;font-size:10px;color:var(--muted)}
+.odot{width:6px;height:6px;border-radius:50%;background:var(--red)}
+.odot.on{background:var(--g);box-shadow:0 0 6px var(--g)}
+
+.pbody{padding:14px 14px 20px;display:flex;flex-direction:column;gap:18px}
+.sec{font-family:monospace;font-size:9px;color:var(--muted);letter-spacing:2px;margin-bottom:8px}
+
+.codebox{
+  background:var(--dim);border:1px solid var(--border);border-radius:10px;
+  padding:13px 14px;display:flex;align-items:center;justify-content:space-between;gap:10px;
+}
+.codeval{font-family:monospace;font-size:30px;font-weight:900;color:var(--g);letter-spacing:6px;text-shadow:0 0 20px rgba(57,255,20,.5)}
+.bsm{
+  background:var(--dim);border:1px solid var(--border);color:var(--g);
+  padding:9px 13px;border-radius:7px;font-weight:700;font-size:13px;
+  cursor:pointer;white-space:nowrap;transition:all .15s;font-family:sans-serif;
+}
+.bsm:active{transform:scale(.93);background:rgba(57,255,20,.18)}
+
+.stats{display:flex;gap:8px}
+.sbox{flex:1;background:var(--dim);border:1px solid var(--border);border-radius:8px;padding:10px;text-align:center}
+.sn{font-family:monospace;font-size:22px;font-weight:900;color:var(--g)}
+.sl{font-size:9px;color:var(--muted);margin-top:2px;letter-spacing:1px}
+
+.clan-row{display:flex;gap:8px}
+.clan-inp{
+  flex:1;background:rgba(0,0,0,.6);border:1px solid var(--border);
+  border-radius:8px;padding:11px 14px;color:var(--g);
+  font-family:monospace;font-size:16px;letter-spacing:4px;
+  outline:none;text-transform:uppercase;
+}
+.clan-inp::placeholder{color:var(--muted);font-size:10px;letter-spacing:0}
+.clan-inp:focus{border-color:var(--g);box-shadow:0 0 14px rgba(57,255,20,.18)}
+.bjoin{
+  background:rgba(57,255,20,.12);border:1px solid rgba(57,255,20,.4);color:var(--g);
+  padding:11px 16px;border-radius:8px;font-weight:700;font-size:14px;
+  cursor:pointer;white-space:nowrap;font-family:sans-serif;
+}
+.bjoin:active{transform:scale(.94)}
+.hint{font-size:11px;color:var(--muted);line-height:1.5;margin-top:9px}
+
+.clan-active{background:var(--dim);border:1px solid var(--border);border-radius:10px;padding:13px 14px}
+.clan-top{display:flex;align-items:center;justify-content:space-between;margin-bottom:10px}
+.cbadge{font-family:monospace;font-size:14px;font-weight:700;color:var(--g);letter-spacing:3px;background:rgba(57,255,20,.1);border:1px solid var(--border);border-radius:5px;padding:4px 10px}
+.bleave{background:rgba(255,51,85,.08);border:1px solid rgba(255,51,85,.3);color:var(--red);padding:7px 12px;border-radius:6px;font-weight:700;font-size:12px;cursor:pointer;font-family:sans-serif}
+.members{display:flex;flex-wrap:wrap;gap:6px;margin-top:8px}
+.mtag{display:flex;align-items:center;gap:5px;padding:4px 10px;border-radius:20px;font-size:11px;font-family:monospace;border:1px solid;white-space:nowrap}
+.mdot{width:6px;height:6px;border-radius:50%;flex-shrink:0}
+
+#btn-recenter{
+  display:none;position:fixed;right:14px;bottom:76px;z-index:390;
+  width:48px;height:48px;border-radius:12px;
+  background:var(--panel);border:1px solid var(--border);
+  color:var(--g);font-size:22px;cursor:pointer;
+  align-items:center;justify-content:center;
+  box-shadow:0 4px 20px rgba(0,0,0,.7);
+}
+#btn-recenter:active{transform:scale(.9)}
+
+#toast{
+  position:fixed;top:70px;left:50%;transform:translateX(-50%) translateY(-10px);
+  background:var(--panel);border:1px solid var(--border);
+  border-radius:9px;padding:10px 18px;
+  color:var(--g);font-weight:700;font-size:13px;
+  z-index:9999;opacity:0;transition:all .28s;pointer-events:none;
+  white-space:nowrap;box-shadow:0 4px 24px rgba(0,0,0,.7);
+}
+#toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
+#toast.err{color:var(--red);border-color:rgba(255,51,85,.35)}
+</style>
+</head>
+<body>
+
+<div id="map"></div>
+
+<!-- START OVERLAY -->
+<div id="overlay">
+  <div class="logo">TERITOR<br>WAR<span>OSVOJI GRAD</span></div>
+  <div class="ov-desc">Hodaj i osvajaj teritorij oko sebe.<br>Dijeli kod s prijateljem — igrajte zajedno.</div>
+  <button id="btn-start">▶ POKRENI</button>
+  <div class="ov-note">📍 Browser će pitati za lokaciju.<br>Obavezno pritisni <b>Dozvoli / Allow</b>.</div>
+  <div id="ov-msg"></div>
+</div>
+
+<!-- HUD -->
+<div id="hud">
+  <div class="hud-logo">T▪WAR</div>
+  <div class="hud-r">
+    <div class="chip"><small>PLOČICE</small><span id="tile-count">0</span></div>
+    <div class="gpsdot" id="gpsdot" style="position:relative"></div>
+  </div>
+</div>
+
+<!-- PANEL -->
+<div id="panel">
+  <div class="dragbar"></div>
+  <div class="phandle" onclick="togglePanel()">
+    <span class="plbl">KOMANDNI CENTAR</span>
+    <div class="obadge"><div class="odot" id="odot"></div><span id="otxt">OFFLINE</span></div>
+  </div>
+  <div class="pbody">
+
+    <div>
+      <div class="sec">🔑 TVOJ KOD</div>
+      <div class="codebox">
+        <div>
+          <div style="font-size:9px;color:var(--muted);font-family:monospace;letter-spacing:1px;margin-bottom:4px">PODIJELI S PRIJATELJEM</div>
+          <div class="codeval" id="my-code">------</div>
+        </div>
+        <button class="bsm" onclick="copyCode()">📋 KOPIRAJ</button>
+      </div>
+    </div>
+
+    <div>
+      <div class="sec">📊 STATISTIKE</div>
+      <div class="stats">
+        <div class="sbox"><div class="sn" id="s-my">0</div><div class="sl">MOJE</div></div>
+        <div class="sbox"><div class="sn" id="s-clan">0</div><div class="sl">KLAN</div></div>
+        <div class="sbox"><div class="sn" id="s-mem">0</div><div class="sl">ČLANOVI</div></div>
+      </div>
+    </div>
+
+    <div>
+      <div class="sec">⚔️ KLAN</div>
+      <div id="ui-nc">
+        <div class="clan-row">
+          <input id="clan-inp" class="clan-inp" maxlength="6" placeholder="Upiši kod igrača"/>
+          <button class="bjoin" onclick="joinClan()">PRIDRUŽI</button>
+        </div>
+        <div class="hint">Upiši kod drugog igrača → ulaziš u njegov klan → vidite međusobnu teritoriju, ali NE lokaciju.</div>
+      </div>
+      <div id="ui-ic" style="display:none">
+        <div class="clan-active">
+          <div class="clan-top">
+            <div>
+              <div style="font-size:9px;color:var(--muted);font-family:monospace;letter-spacing:1px;margin-bottom:4px">KOD KLANA</div>
+              <div class="cbadge" id="cbadge">---</div>
+            </div>
+            <button class="bleave" onclick="leaveClan()">NAPUSTI ✗</button>
+          </div>
+          <div class="sec" style="margin-bottom:2px">👥 ČLANOVI</div>
+          <div class="members" id="members"></div>
+        </div>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<button id="btn-recenter" onclick="recenter()">📍</button>
+<div id="toast"></div>
+
+<script>
+// ══════════════════════════════════
+//  CONFIG
+// ══════════════════════════════════
+const TILE  = 0.0003;   // ~33m po ćeliji
+const RAD   = 3;         // Radius ~99m
+const DMIN  = 0.00015;  // Min pomak
+const NS    = 'twv5';
+
+// ══════════════════════════════════
+//  STATE
+// ══════════════════════════════════
+let map, myCode, myColor, myClan=null;
+let myTiles   = new Set();
+let clanTiles = new Map();   // code->Set<key>
+let rects     = {};
+let myCircle  = null;
+let lastPos   = null;
+let follow    = true;
+let panelOpen = false;
+let gun, terrDB, clansDB;
+
+// ══════════════════════════════════
+//  LEAFLET LOADER
+// ══════════════════════════════════
+function loadLeaflet(cb) {
+  if (window.L) { cb(); return; }
+  const css = document.createElement('link');
+  css.rel  = 'stylesheet';
+  css.href = 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css';
+  document.head.appendChild(css);
+  const s = document.createElement('script');
+  s.src = 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js';
+  s.onload = cb;
+  s.onerror = () => {
+    // Fallback CDN
+    const s2 = document.createElement('script');
+    s2.src   = 'https://unpkg.com/leaflet@1.9.4/dist/leaflet.js';
+    s2.onload = cb;
+    document.head.appendChild(s2);
+  };
+  document.head.appendChild(s);
+}
+
+function loadGun(cb) {
+  if (window.Gun) { cb(); return; }
+  const s = document.createElement('script');
+  s.src   = 'https://cdn.jsdelivr.net/npm/gun/gun.js';
+  s.onload = cb;
+  s.onerror = cb; // Gun nije kritičan
+  document.head.appendChild(s);
+}
+
+// ══════════════════════════════════
+//  INIT PLAYER
+// ══════════════════════════════════
+function initPlayer() {
+  myCode = localStorage.getItem('tw_code') || '';
+  if (myCode.length !== 6) {
+    myCode = Math.random().toString(36).slice(2,8).toUpperCase();
+    localStorage.setItem('tw_code', myCode);
+  }
+  myColor = localStorage.getItem('tw_color') || '';
+  if (!myColor) {
+    const h = Math.floor(Math.random()*300)+30;
+    myColor = 'hsl('+h+',85%,58%)';
+    localStorage.setItem('tw_color', myColor);
+  }
+  myClan = localStorage.getItem('tw_clan') || null;
+  document.getElementById('my-code').textContent = myCode;
+  try {
+    JSON.parse(localStorage.getItem('tw_tiles')||'[]').forEach(k=>myTiles.add(k));
+  } catch(e){}
+}
+
+// ══════════════════════════════════
+//  MAP INIT
+// ══════════════════════════════════
+function initMap() {
+  map = L.map('map', {
+    zoomControl:false, attributionControl:false,
+    minZoom:14, maxZoom:19
+  }).setView([44.8,20.5], 16);
+
+  L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{
+    maxZoom:19, crossOrigin:true
+  }).addTo(map);
+
+  map.on('dragstart',()=>{ follow=false; });
+
+  myTiles.forEach(k => drawRect(k, myColor, 0.45));
+  updateStats();
+}
+
+// ══════════════════════════════════
+//  TILE HELPERS
+// ══════════════════════════════════
+function key(lat,lng){ return Math.floor(lat/TILE)+'_'+Math.floor(lng/TILE); }
+function bounds(k){
+  const p=k.split('_'), r=+p[0], c=+p[1];
+  return [[r*TILE, c*TILE],[(r+1)*TILE,(c+1)*TILE]];
+}
+function around(lat,lng){
+  const r=Math.floor(lat/TILE), c=Math.floor(lng/TILE), out=[];
+  for(let dy=-RAD;dy<=RAD;dy++)
+    for(let dx=-RAD;dx<=RAD;dx++)
+      if(Math.sqrt(dx*dx+dy*dy)<=RAD+.5) out.push((r+dy)+'_'+(c+dx));
+  return out;
+}
+function drawRect(k, color, opacity){
+  if(!map) return;
+  if(rects[k]){ rects[k].setStyle({fillColor:color,color:color,fillOpacity:opacity}); return; }
+  rects[k]=L.rectangle(bounds(k),{
+    color, weight:.6, fillColor:color, fillOpacity:opacity,
+    opacity:.5, interactive:false
+  }).addTo(map);
+}
+function removeRect(k){ if(rects[k]){ map.removeLayer(rects[k]); delete rects[k]; } }
+
+// ══════════════════════════════════
+//  GPS + START
+// ══════════════════════════════════
+document.getElementById('btn-start').onclick = function() {
+  const msg = document.getElementById('ov-msg');
+  const btn = this;
+
+  if (!navigator.geolocation) {
+    msg.style.color = 'var(--red)';
+    msg.textContent = '❌ GPS nije podržan u ovom browseru.';
+    return;
+  }
+
+  btn.textContent   = '⏳ Čeka se GPS...';
+  btn.style.opacity = '.5';
+  btn.onclick       = null;
+  msg.style.color   = 'var(--muted)';
+  msg.textContent   = 'Čeka se dozvola i GPS signal...';
+
+  // Zatraži lokaciju odmah (user gesture = OK)
+  navigator.geolocation.getCurrentPosition(
+    function(pos){
+      // Uspjeh
+      const ov = document.getElementById('overlay');
+      ov.style.opacity = '0';
+      setTimeout(function(){
+        ov.style.display = 'none';
+        showGame();
+        onPos(pos);
+        navigator.geolocation.watchPosition(onPos, onGPSErr,
+          {enableHighAccuracy:true, maximumAge:5000, timeout:30000});
+      }, 450);
+    },
+    function(err){
+      // Greška
+      btn.textContent   = '▶ POKUŠAJ PONOVO';
+      btn.style.opacity = '1';
+      btn.onclick       = document.getElementById('btn-start').onclick;
+      msg.style.color   = 'var(--red)';
+      if (err.code===1) {
+        msg.innerHTML = '❌ Lokacija odbijena!<br>Idi u <b>Podešavanja telefona → Aplikacije → Browser → Lokacija → Dozvoli</b>';
+      } else if (err.code===2) {
+        msg.textContent = '📡 Nema GPS signala. Idi napolje ili uključi WiFi.';
+      } else {
+        msg.textContent = '⏱ Timeout. Provjeri da je GPS uključen i pokušaj ponovo.';
+      }
+      // Vrati onclick
+      document.getElementById('btn-start').onclick = arguments.callee.caller;
+    },
+    {enableHighAccuracy:true, timeout:20000, maximumAge:0}
+  );
+};
+// Popravka rekurzivne reference
+(function(){
+  const origBtn = document.getElementById('btn-start');
+  const handler = origBtn.onclick;
+  origBtn._handler = handler;
+})();
+
+function showGame() {
+  document.getElementById('hud').style.display            = 'flex';
+  document.getElementById('panel').style.display          = 'block';
+  document.getElementById('btn-recenter').style.display   = 'flex';
+  loadGun(initGun);
+  updateClanUI();
+  toast('Dobrodošao '+myCode+'! Hodaj da osvajaj 🗺️');
+}
+
+function onPos(pos) {
+  const lat=pos.coords.latitude, lng=pos.coords.longitude;
+  setGPS('ok');
+
+  const latlng = L.latLng(lat,lng);
+  if (!myCircle) {
+    myCircle = L.circleMarker(latlng, {
+      radius:9, fillColor:myColor, fillOpacity:1,
+      color:'#fff', weight:2, className:'mymarker'
+    }).addTo(map);
+  } else {
+    myCircle.setLatLng(latlng);
+  }
+
+  if (follow) map.setView(latlng, map.getZoom()<16?17:map.getZoom());
+
+  if (lastPos && Math.hypot(lat-lastPos[0], lng-lastPos[1]) < DMIN) return;
+  lastPos = [lat,lng];
+  claim(lat,lng);
+}
+
+function onGPSErr(err) {
+  setGPS('err');
+  const msgs={1:'❌ Lokacija odbijena!',2:'📡 GPS signal nedostupan.',3:'⏱ GPS timeout.'};
+  toast(msgs[err.code]||'GPS greška', true);
+}
+
+function claim(lat,lng) {
+  const fresh = around(lat,lng).filter(k=>!myTiles.has(k));
+  if (!fresh.length) return;
+  fresh.forEach(k=>{
+    myTiles.add(k);
+    drawRect(k,myColor,0.45);
+    try{ terrDB.get(k).put({owner:myCode,color:myColor,clan:myClan||'',ts:Date.now()}); }catch(e){}
+  });
+  try{
+    const arr=[...myTiles].slice(-3000);
+    localStorage.setItem('tw_tiles',JSON.stringify(arr));
+  }catch(e){}
+  updateStats();
+}
+
+// ══════════════════════════════════
+//  GUN MULTIPLAYER
+// ══════════════════════════════════
+function initGun() {
+  if (!window.Gun) return;
+  try {
+    gun = new Gun(['https://gun-manhattan.herokuapp.com/gun','https://gun-us.herokuapp.com/gun']);
+    terrDB  = gun.get(NS+'_t');
+    clansDB = gun.get(NS+'_c');
+
+    gun.get(NS+'_p').get(myCode).put({color:myColor,clan:myClan||'',ts:Date.now()});
+
+    setTimeout(()=>setOnline(true), 5000);
+
+    terrDB.map().on(function(d,k){
+      if(!d||!d.owner||!k||!k.includes('_')) return;
+      if(d.owner===myCode) return;
+      if(!myClan||d.clan!==myClan) return;
+      const owner=d.owner;
+      if(!clanTiles.has(owner)) clanTiles.set(owner,new Set());
+      if(!clanTiles.get(owner).has(k)){
+        clanTiles.get(owner).add(k);
+        drawRect(k,d.color||'#4488ff',0.28);
+        updateStats();
+      }
+    });
+
+    if(myClan) listenClan(myClan);
+  } catch(e){ console.warn('Gun greška:',e); }
+}
+
+// ══════════════════════════════════
+//  KLAN
+// ══════════════════════════════════
+function joinClan(){
+  const inp=document.getElementById('clan-inp');
+  const code=inp.value.trim().toUpperCase().slice(0,6);
+  if(code.length<4){ toast('Min. 4 znaka!',true); return; }
+  if(code===myCode){ toast('Ne možeš se pridružiti svom klanu!',true); return; }
+  if(code===myClan){ toast('Već si u ovom klanu!',true); return; }
+  if(myClan) leaveClan(true);
+  myClan=code;
+  localStorage.setItem('tw_clan',myClan);
+  try{
+    clansDB.get(myClan).get('m').get(myCode).put({code:myCode,color:myColor,ts:Date.now()});
+    gun.get(NS+'_p').get(myCode).put({color:myColor,clan:myClan,ts:Date.now()});
+    myTiles.forEach(k=>{ try{terrDB.get(k).get('clan').put(myClan);}catch(e){} });
+    listenClan(myClan);
+  }catch(e){}
+  inp.value='';
+  updateClanUI();
+  toast('Pridružio si se klanu '+myClan+'! ✅');
+}
+
+function leaveClan(silent){
+  if(!myClan) return;
+  try{
+    clansDB.get(myClan).get('m').get(myCode).put(null);
+    gun.get(NS+'_p').get(myCode).put({color:myColor,clan:'',ts:Date.now()});
+    myTiles.forEach(k=>{ try{terrDB.get(k).get('clan').put('');}catch(e){} });
+  }catch(e){}
+  clanTiles.forEach(s=>s.forEach(k=>{ if(!myTiles.has(k)) removeRect(k); }));
+  clanTiles.clear();
+  const old=myClan; myClan=null;
+  localStorage.removeItem('tw_clan');
+  updateClanUI(); updateStats();
+  if(!silent) toast('Napustio si klan '+old+'!');
+}
+
+function listenClan(id){
+  try{
+    clansDB.get(id).get('m').map().on(function(d,code){
+      if(!d||!code||code.length<4||code==='_') return;
+      addTag(code,d.color||'#4488ff');
+    });
+  }catch(e){}
+}
+
+function addTag(code,color){
+  if(document.getElementById('tag-'+code)) return;
+  const el=document.getElementById('members');
+  const t=document.createElement('div');
+  t.className='mtag'; t.id='tag-'+code;
+  t.style.cssText='border-color:'+color+'55;background:'+color+'18;color:'+color;
+  t.innerHTML='<div class="mdot" style="background:'+color+'"></div>'+code+(code===myCode?' ◀':'');
+  el.appendChild(t);
+  updateStats();
+}
+
+function updateClanUI(){
+  const nc=document.getElementById('ui-nc'), ic=document.getElementById('ui-ic');
+  if(myClan){
+    nc.style.display='none'; ic.style.display='block';
+    document.getElementById('cbadge').textContent=myClan;
+    addTag(myCode,myColor);
+  } else {
+    nc.style.display='block'; ic.style.display='none';
+    document.getElementById('members').innerHTML='';
+  }
+}
+
+// ══════════════════════════════════
+//  UI
+// ══════════════════════════════════
+function updateStats(){
+  const ct=[...clanTiles.values()].reduce((s,st)=>s+st.size,0);
+  document.getElementById('tile-count').textContent=myTiles.size;
+  document.getElementById('s-my').textContent=myTiles.size;
+  document.getElementById('s-clan').textContent=ct;
+  document.getElementById('s-mem').textContent=document.getElementById('members').children.length;
+}
+
+function setGPS(s){
+  const d=document.getElementById('gpsdot');
+  d.className='gpsdot'+(s==='ok'?' ok':s==='err'?' err':'');
+}
+
+function setOnline(on){
+  document.getElementById('odot').className='odot'+(on?' on':'');
+  document.getElementById('otxt').textContent=on?'ONLINE':'OFFLINE';
+}
+
+function togglePanel(){
+  panelOpen=!panelOpen;
+  document.getElementById('panel').classList.toggle('open',panelOpen);
+}
+
+function recenter(){
+  follow=true;
+  if(myCircle) map.setView(myCircle.getLatLng(), Math.max(map.getZoom(),17));
+}
+
+function copyCode(){
+  try{ navigator.clipboard.writeText(myCode); } catch(e){
+    const t=document.createElement('textarea');
+    t.value=myCode; document.body.appendChild(t); t.select();
+    document.execCommand('copy'); t.remove();
+  }
+  toast('Kod '+myCode+' kopiran! 📋');
+}
+
+let tT;
+function toast(msg,err){
+  const el=document.getElementById('toast');
+  el.textContent=msg;
+  el.className='show'+(err?' err':'');
+  clearTimeout(tT);
+  tT=setTimeout(()=>el.className='',3500);
+}
+
+document.getElementById('clan-inp').addEventListener('input',e=>e.target.value=e.target.value.toUpperCase());
+document.getElementById('clan-inp').addEventListener('keydown',e=>e.key==='Enter'&&joinClan());
+document.getElementById('map').addEventListener('click',()=>{ if(panelOpen) togglePanel(); });
+
+// ══════════════════════════════════
+//  BOOT
+// ══════════════════════════════════
+initPlayer();
+loadLeaflet(initMap);
+</script>
+</body>
+</html>
