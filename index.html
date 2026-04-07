@@ -1,0 +1,1422 @@
+<!DOCTYPE html>
+<html lang="bs">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no, viewport-fit=cover">
+<title>TeritorWar</title>
+<link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@700;900&family=Rajdhani:wght@500;600;700&display=swap" rel="stylesheet">
+<style>
+*{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+:root{
+  --g:#00ff88;--g2:#00cc66;--gd:rgba(0,255,136,.1);--gb:rgba(0,255,136,.22);
+  --bg:#030a0e;--bg2:#061420;--panel:rgba(4,12,18,.97);
+  --red:#ff3355;--yellow:#ffd700;--orange:#ff8800;--blue:#44aaff;--purple:#bb77ff;
+  --text:#b8edd8;--muted:rgba(150,220,190,.45);--border:rgba(0,255,136,.18);--border2:rgba(0,255,136,.07);
+}
+html,body{width:100%;height:100%;overflow:hidden;background:var(--bg);font-family:'Rajdhani',sans-serif;color:var(--text)}
+
+/* ══ MAP ══ */
+#mapv{position:fixed;inset:0;z-index:1}
+.leaflet-tile-pane{filter:brightness(.5) saturate(.35) hue-rotate(155deg)}
+.leaflet-control-attribution,.leaflet-control-zoom{display:none!important}
+
+/* ══ AR ══ */
+#arv{position:fixed;inset:0;z-index:50;display:none;background:#000;overflow:hidden}
+#ar-vid{position:absolute;inset:0;width:100%;height:100%;object-fit:cover}
+#ar-scene{position:absolute;inset:0;z-index:2;pointer-events:none}
+#ar-touch{position:absolute;inset:0;z-index:3}
+#arv::before{content:'';position:absolute;inset:0;z-index:1;pointer-events:none;
+  background:linear-gradient(to bottom,rgba(0,0,0,.55) 0%,transparent 22%,transparent 60%,rgba(0,0,0,.75) 100%)}
+.scan{position:absolute;inset:0;z-index:2;pointer-events:none;
+  background:repeating-linear-gradient(0deg,transparent,transparent 3px,rgba(0,0,0,.04) 3px,rgba(0,0,0,.04) 4px)}
+
+/* AR ANIMAL */
+.ara{position:absolute;display:flex;flex-direction:column;align-items:center;
+  cursor:pointer;pointer-events:all;transform-origin:center bottom}
+.ara-body{position:relative;display:flex;flex-direction:column;align-items:center;
+  animation:afloat 2.8s ease-in-out infinite}
+@keyframes afloat{0%,100%{transform:translateY(0)}50%{transform:translateY(-9px)}}
+.ara-shadow{border-radius:50%;background:rgba(0,0,0,.35);
+  animation:ashadow 2.8s ease-in-out infinite;margin-top:2px}
+@keyframes ashadow{0%,100%{opacity:.6;transform:scaleX(1)}50%{opacity:.15;transform:scaleX(.55)}}
+.ara-lbl{font-family:'Orbitron',monospace;font-weight:700;text-align:center;
+  text-shadow:0 0 10px currentColor,1px 2px 5px #000;margin-top:5px;line-height:1.25}
+.ara-dist{font-size:11px;font-family:'Rajdhani',sans-serif;
+  background:rgba(0,0,0,.6);border-radius:4px;padding:1px 7px;margin-top:2px;opacity:.85}
+.ara.sel .ara-body .ara-em{animation:apulse .5s ease-in-out infinite alternate}
+@keyframes apulse{from{filter:drop-shadow(0 0 8px currentColor)}to{filter:drop-shadow(0 0 24px currentColor) drop-shadow(0 0 48px currentColor)}}
+@keyframes tapring{0%{width:10px;height:10px;opacity:1;border-width:4px}
+  100%{width:100px;height:100px;opacity:0;border-width:1px}}
+.tap-ring{position:absolute;top:50%;left:50%;border-radius:50%;border-style:solid;
+  transform:translate(-50%,-50%);pointer-events:none;animation:tapring .55s ease-out forwards}
+
+/* ══ AR HUD ══ */
+#ar-hud{display:none;position:fixed;top:0;left:0;right:0;z-index:60;
+  padding:max(14px,env(safe-area-inset-top)) 14px 12px;
+  align-items:center;justify-content:space-between;gap:8px}
+.ar-pill{background:rgba(0,0,0,.65);border:1px solid var(--border);
+  border-radius:20px;padding:6px 14px;backdrop-filter:blur(10px);
+  font-family:'Orbitron',monospace;font-size:11px;color:var(--g);letter-spacing:1px}
+.ar-back{background:rgba(0,0,0,.65);border:1px solid var(--border);color:var(--g);
+  padding:8px 16px;border-radius:10px;font-family:'Orbitron',monospace;
+  font-size:11px;cursor:pointer;backdrop-filter:blur(10px);letter-spacing:1px}
+
+/* ══ AR BOTTOM ══ */
+#ar-bot{display:none;position:fixed;bottom:0;left:0;right:0;z-index:60;
+  padding:12px 14px max(18px,env(safe-area-inset-bottom))}
+.ar-tip{text-align:center;font-family:'Orbitron',monospace;font-size:11px;
+  color:rgba(255,255,255,.65);letter-spacing:1px;text-shadow:0 1px 6px #000;margin-bottom:8px}
+.ar-card{background:rgba(4,12,18,.88);border:1px solid var(--border);
+  border-radius:18px;padding:14px 16px;backdrop-filter:blur(14px);
+  display:flex;flex-direction:column;gap:12px}
+.arc-top{display:flex;align-items:center;gap:12px}
+.arc-em{font-size:42px;line-height:1;flex-shrink:0}
+.arc-info{flex:1}
+.arc-name{font-family:'Orbitron',monospace;font-size:14px;font-weight:700}
+.arc-sub{font-size:12px;color:var(--muted);margin-top:2px}
+.feed-wrap{display:flex;flex-direction:column;gap:5px}
+.feed-header{display:flex;justify-content:space-between;align-items:center}
+.feed-lbl{font-family:'Orbitron',monospace;font-size:9px;color:var(--muted);letter-spacing:1px}
+.feed-count{font-family:'Orbitron',monospace;font-size:11px;color:var(--g);font-weight:700}
+.feed-track{height:8px;background:rgba(255,255,255,.08);border-radius:4px;overflow:hidden}
+.feed-fill{height:100%;border-radius:4px;
+  background:linear-gradient(90deg,var(--g2),var(--g),#88ffcc);
+  transition:width .35s cubic-bezier(.34,1.56,.64,1)}
+.arc-btns{display:flex;gap:8px}
+.arc-btn{flex:1;padding:13px 6px;border-radius:12px;font-family:'Orbitron',monospace;
+  font-weight:700;font-size:12px;cursor:pointer;border:1.5px solid;
+  letter-spacing:.5px;text-align:center;transition:all .15s;line-height:1}
+.arc-btn:active{transform:scale(.92)}
+.abtn-feed{background:rgba(0,255,136,.1);border-color:var(--g);color:var(--g)}
+.abtn-kill{background:rgba(255,51,85,.1);border-color:var(--red);color:var(--red)}
+
+/* ══ HUD ══ */
+#hud{display:none;position:fixed;top:0;left:0;right:0;z-index:200;
+  padding:max(12px,env(safe-area-inset-top)) 14px 13px;
+  align-items:center;justify-content:space-between;
+  background:linear-gradient(to bottom,rgba(3,8,14,.96) 65%,transparent);
+  border-bottom:1px solid var(--border2)}
+.hud-logo{font-family:'Orbitron',monospace;font-weight:900;font-size:17px;
+  color:var(--g);letter-spacing:3px;text-shadow:0 0 18px var(--g)}
+.hud-r{display:flex;align-items:center;gap:6px}
+.hchip{display:flex;align-items:center;gap:4px;background:var(--gd);
+  border:1px solid var(--border);border-radius:8px;padding:5px 9px;cursor:pointer}
+.hchip-icon{font-size:13px}
+.hchip-v{font-family:'Orbitron',monospace;font-size:12px;color:var(--g);font-weight:700}
+.hchip-l{font-size:7px;color:var(--muted);letter-spacing:1px;display:block}
+.gpsdot{width:11px;height:11px;border-radius:50%;background:var(--yellow);
+  flex-shrink:0;position:relative;transition:all .4s}
+.gpsdot.ok{background:var(--g);box-shadow:0 0 8px var(--g)}
+.gpsdot.ok::after{content:'';position:absolute;inset:-4px;border-radius:50%;
+  border:1px solid var(--g);animation:gring 1.6s ease-out infinite}
+.gpsdot.err{background:var(--red)}
+@keyframes gring{0%{transform:scale(1);opacity:1}100%{transform:scale(2.2);opacity:0}}
+
+/* ══ FABs ══ */
+.fab{position:fixed;right:14px;z-index:190;width:52px;height:52px;border-radius:16px;
+  display:none;align-items:center;justify-content:center;font-size:22px;cursor:pointer;
+  background:var(--panel);border:1px solid var(--border);
+  box-shadow:0 6px 24px rgba(0,0,0,.65);backdrop-filter:blur(8px);transition:all .2s}
+.fab:active{transform:scale(.88)}
+#fab-rc{bottom:76px;color:var(--g)}
+#fab-ar{bottom:140px;color:var(--yellow)}
+#fab-ar.on{color:var(--g);background:rgba(0,255,136,.1);border-color:var(--g);box-shadow:0 0 20px rgba(0,255,136,.25)}
+#fab-stable{bottom:204px;color:var(--orange)}
+#fab-chat{bottom:268px;color:var(--blue)}
+.fab-bdg{position:absolute;top:-7px;right:-7px;background:var(--red);color:#fff;
+  border-radius:50%;width:20px;height:20px;font-size:10px;font-weight:700;
+  display:flex;align-items:center;justify-content:center;
+  font-family:'Orbitron',monospace;border:2px solid var(--bg);pointer-events:none}
+
+/* ══ PANEL ══ */
+#panel{display:none;position:fixed;bottom:0;left:0;right:0;z-index:200;
+  background:var(--panel);border-top:1px solid var(--border);border-radius:20px 20px 0 0;
+  transform:translateY(calc(100% - 60px));
+  transition:transform .4s cubic-bezier(.34,1.56,.64,1);max-height:90vh;backdrop-filter:blur(16px)}
+#panel.open{transform:translateY(0);overflow-y:auto}
+.phandle{padding:10px 16px 12px;cursor:pointer;
+  display:flex;align-items:center;justify-content:space-between;
+  position:sticky;top:0;background:var(--panel);z-index:1;border-bottom:1px solid var(--border2)}
+.dragpill{width:36px;height:4px;background:var(--border);border-radius:2px;
+  position:absolute;left:50%;transform:translateX(-50%);top:8px}
+.plbl{font-family:'Orbitron',monospace;font-size:10px;color:var(--muted);letter-spacing:2px}
+.opill{display:flex;align-items:center;gap:5px;font-size:10px;color:var(--muted)}
+.odot{width:6px;height:6px;border-radius:50%;background:var(--red)}
+.odot.on{background:var(--g);box-shadow:0 0 6px var(--g)}
+.pbody{padding:16px 14px 24px;display:flex;flex-direction:column;gap:20px}
+.sec{font-family:'Orbitron',monospace;font-size:9px;color:var(--muted);letter-spacing:2px;
+  margin-bottom:10px;display:flex;align-items:center;gap:6px}
+.sec::after{content:'';flex:1;height:1px;background:var(--border2)}
+
+/* code */
+.codebox{background:var(--gd);border:1px solid var(--border);border-radius:14px;
+  padding:14px 16px;display:flex;align-items:center;justify-content:space-between;gap:12px}
+.codeval{font-family:'Orbitron',monospace;font-size:32px;font-weight:900;color:var(--g);
+  letter-spacing:7px;text-shadow:0 0 24px rgba(0,255,136,.45)}
+.codesub{font-size:9px;color:var(--muted);letter-spacing:1px;margin-bottom:4px}
+.btncp{background:rgba(0,255,136,.08);border:1px solid var(--border);color:var(--g);
+  padding:10px 14px;border-radius:10px;font-family:'Rajdhani',sans-serif;
+  font-weight:700;font-size:13px;cursor:pointer;white-space:nowrap;transition:all .15s}
+.btncp:active{transform:scale(.93);background:rgba(0,255,136,.22)}
+
+/* stats */
+.srow{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}
+.sbox{background:rgba(0,255,136,.04);border:1px solid var(--border2);border-radius:12px;
+  padding:12px 8px;text-align:center}
+.sn{font-family:'Orbitron',monospace;font-size:24px;font-weight:900;color:var(--g)}
+.sl{font-size:9px;color:var(--muted);margin-top:2px;letter-spacing:1px}
+
+/* berries */
+.brow{background:rgba(255,215,0,.05);border:1px solid rgba(255,215,0,.16);
+  border-radius:12px;padding:12px 16px;display:flex;align-items:center;gap:12px}
+.bicon{font-size:30px}
+.bcnt{font-family:'Orbitron',monospace;font-size:28px;font-weight:900;color:var(--yellow)}
+.blbl{font-size:10px;color:var(--muted);letter-spacing:.5px;margin-top:1px}
+
+/* clan */
+.clan-row{display:flex;gap:8px}
+.clan-inp{flex:1;background:rgba(0,0,0,.5);border:1px solid var(--border);border-radius:10px;
+  padding:12px 14px;color:var(--g);font-family:'Orbitron',monospace;font-size:15px;
+  letter-spacing:4px;outline:none;text-transform:uppercase;transition:border-color .2s}
+.clan-inp::placeholder{color:var(--muted);font-size:10px;letter-spacing:0;font-family:'Rajdhani',sans-serif}
+.clan-inp:focus{border-color:var(--g);box-shadow:0 0 0 3px rgba(0,255,136,.08)}
+.btnjoin{background:rgba(0,255,136,.1);border:1.5px solid var(--g2);color:var(--g);
+  padding:12px 16px;border-radius:10px;font-family:'Orbitron',monospace;font-weight:700;
+  font-size:13px;cursor:pointer;white-space:nowrap;letter-spacing:.5px;transition:all .15s}
+.btnjoin:active{transform:scale(.94)}
+.clhint{font-size:11px;color:var(--muted);line-height:1.55;margin-top:10px}
+.clbox{background:var(--gd);border:1px solid var(--border);border-radius:14px;padding:14px}
+.clboxtop{display:flex;align-items:center;justify-content:space-between;margin-bottom:12px}
+.clbadge{font-family:'Orbitron',monospace;font-size:15px;font-weight:700;color:var(--g);
+  letter-spacing:3px;background:rgba(0,255,136,.08);border:1px solid var(--border);
+  border-radius:7px;padding:5px 12px}
+.btnleave{background:rgba(255,51,85,.07);border:1px solid rgba(255,51,85,.28);color:var(--red);
+  padding:8px 13px;border-radius:8px;font-family:'Orbitron',monospace;font-weight:700;font-size:11px;cursor:pointer}
+.mwrap{display:flex;flex-wrap:wrap;gap:6px;margin-top:8px}
+.mtag{display:flex;align-items:center;gap:5px;padding:5px 11px;border-radius:20px;
+  font-size:11px;font-family:'Orbitron',monospace;border:1px solid;white-space:nowrap}
+.mdot{width:7px;height:7px;border-radius:50%;flex-shrink:0}
+
+/* ══ FULL SCREENS ══ */
+.fs{position:fixed;inset:0;z-index:500;background:var(--bg);display:none;flex-direction:column}
+.fshead{padding:max(14px,env(safe-area-inset-top)) 14px 14px;flex-shrink:0;
+  background:var(--panel);border-bottom:1px solid var(--border);
+  display:flex;align-items:center;justify-content:space-between;backdrop-filter:blur(16px)}
+.fstitle{font-family:'Orbitron',monospace;font-size:14px;color:var(--g);letter-spacing:2px}
+.fsbtnclose{background:rgba(255,255,255,.04);border:1px solid var(--border2);color:var(--muted);
+  padding:8px 16px;border-radius:9px;cursor:pointer;font-size:13px;font-family:'Rajdhani',sans-serif;font-weight:600}
+.fsbody{flex:1;overflow-y:auto;padding:16px;display:flex;flex-direction:column;gap:14px}
+
+/* PET CARDS */
+.pcard{background:linear-gradient(135deg,rgba(0,255,136,.05),rgba(0,0,0,.25));
+  border:1px solid var(--border);border-radius:16px;overflow:hidden;transition:border-color .3s}
+.pcard.evolved{border-color:var(--yellow);background:linear-gradient(135deg,rgba(255,215,0,.06),rgba(0,0,0,.25))}
+.pcard-in{display:flex}
+.pcard-left{width:90px;flex-shrink:0;display:flex;align-items:center;justify-content:center;
+  font-size:52px;padding:14px 0;background:rgba(0,0,0,.35);border-right:1px solid var(--border2);
+  position:relative}
+.evo-badge{position:absolute;top:5px;right:5px;font-size:9px;font-family:'Orbitron',monospace;
+  background:rgba(255,215,0,.15);border:1px solid rgba(255,215,0,.4);color:var(--yellow);
+  border-radius:4px;padding:1px 5px;letter-spacing:.5px}
+.pcard-right{flex:1;padding:13px 13px;display:flex;flex-direction:column;gap:7px}
+.pcard-name{font-family:'Orbitron',monospace;font-size:13px;font-weight:700}
+.pcard-chips{display:flex;gap:6px;flex-wrap:wrap}
+.pchip{font-size:10px;color:var(--muted);background:rgba(0,0,0,.3);border-radius:4px;padding:2px 7px}
+.age-bar-wrap{display:flex;flex-direction:column;gap:3px}
+.age-track{height:5px;background:rgba(255,255,255,.07);border-radius:3px;overflow:hidden}
+.age-fill{height:100%;border-radius:3px;transition:width .5s}
+.age-meta{display:flex;justify-content:space-between}
+.age-lbl{font-size:9px;color:var(--muted);font-family:'Orbitron',monospace;letter-spacing:.5px}
+.pcard-btns{display:flex;gap:7px;margin-top:2px}
+.pbtndep{flex:1;background:rgba(255,136,0,.1);border:1px solid rgba(255,136,0,.35);color:var(--orange);
+  padding:9px 6px;border-radius:9px;font-family:'Orbitron',monospace;font-size:10px;
+  cursor:pointer;letter-spacing:.5px;text-align:center;transition:all .15s}
+.pbtnkill{background:rgba(255,51,85,.07);border:1px solid rgba(255,51,85,.28);color:var(--red);
+  padding:9px 12px;border-radius:9px;font-family:'Orbitron',monospace;font-size:12px;cursor:pointer}
+.pbtndep:active,.pbtnkill:active{transform:scale(.93)}
+.empty-s{display:flex;flex-direction:column;align-items:center;justify-content:center;
+  gap:14px;padding:50px 24px;text-align:center}
+.empty-ic{font-size:52px;opacity:.35}
+.empty-tx{font-size:14px;color:var(--muted);line-height:1.8}
+
+/* DEPLOY MODAL */
+#deploy-modal{position:fixed;inset:0;z-index:700;background:rgba(0,0,0,.85);
+  display:none;align-items:center;justify-content:center;padding:24px;backdrop-filter:blur(8px)}
+.dm-box{background:var(--bg2);border:1px solid var(--border);border-radius:20px;
+  padding:24px;width:100%;max-width:330px;display:flex;flex-direction:column;gap:16px;text-align:center;
+  box-shadow:0 24px 80px rgba(0,0,0,.8)}
+.dm-title{font-family:'Orbitron',monospace;font-size:13px;color:var(--orange);letter-spacing:2px}
+.dm-animal{font-size:48px;margin:4px 0}
+.dm-desc{font-size:13px;color:var(--muted);line-height:1.7}
+.dm-progress{height:8px;background:rgba(255,255,255,.08);border-radius:4px;overflow:hidden}
+.dm-fill{height:100%;background:linear-gradient(90deg,var(--orange),var(--yellow));
+  border-radius:4px;width:0%;transition:width .4s ease}
+.dm-btns{display:flex;gap:10px}
+.dm-btn{flex:1;padding:13px;border-radius:12px;font-family:'Orbitron',monospace;
+  font-weight:700;font-size:13px;cursor:pointer;transition:all .15s;letter-spacing:.5px}
+.dm-btn:active{transform:scale(.95)}
+.dm-confirm{background:rgba(255,136,0,.15);border:1.5px solid var(--orange);color:var(--orange)}
+.dm-cancel{background:rgba(255,255,255,.05);border:1px solid var(--border2);color:var(--muted)}
+
+/* COLOR PICKER MODAL */
+#color-modal{position:fixed;inset:0;z-index:710;background:rgba(0,0,0,.88);
+  display:none;align-items:center;justify-content:center;padding:24px;backdrop-filter:blur(8px)}
+.cm-box{background:var(--bg2);border:1px solid var(--border);border-radius:20px;
+  padding:24px;width:100%;max-width:320px;display:flex;flex-direction:column;gap:16px;text-align:center}
+.cm-title{font-family:'Orbitron',monospace;font-size:13px;color:var(--g);letter-spacing:2px}
+.cm-animal{font-size:52px;margin:4px 0}
+.cm-subtitle{font-size:13px;color:var(--muted)}
+.color-grid{display:grid;grid-template-columns:repeat(5,1fr);gap:8px}
+.color-swatch{width:100%;aspect-ratio:1;border-radius:10px;cursor:pointer;
+  border:2px solid transparent;transition:all .2s}
+.color-swatch:active{transform:scale(.88)}
+.color-swatch.selected{border-color:#fff;box-shadow:0 0 14px currentColor}
+.cm-confirm{background:rgba(0,255,136,.12);border:1.5px solid var(--g);color:var(--g);
+  padding:14px;border-radius:12px;font-family:'Orbitron',monospace;font-weight:700;
+  font-size:14px;cursor:pointer;letter-spacing:1px;transition:all .15s}
+.cm-confirm:active{transform:scale(.96)}
+
+/* BATTLE MODAL */
+#battle-modal{position:fixed;inset:0;z-index:700;background:rgba(0,0,0,.88);
+  display:none;align-items:center;justify-content:center;padding:24px;backdrop-filter:blur(8px)}
+.bm-box{background:var(--bg2);border:1px solid var(--border);border-radius:20px;
+  padding:28px 22px;width:100%;max-width:340px;
+  display:flex;flex-direction:column;gap:14px;text-align:center;
+  box-shadow:0 24px 80px rgba(0,0,0,.8)}
+.bm-title{font-family:'Orbitron',monospace;font-size:13px;color:var(--orange);letter-spacing:3px}
+.bm-combatants{display:flex;align-items:center;justify-content:center;gap:8px;margin:4px 0}
+.bm-pet{display:flex;flex-direction:column;align-items:center;gap:4px;flex:1}
+.bm-pet-em{font-size:44px;line-height:1}
+.bm-pet-name{font-family:'Orbitron',monospace;font-size:9px;color:var(--muted);letter-spacing:1px}
+.bm-vs{font-size:18px;color:var(--red);font-family:'Orbitron',monospace;font-weight:900;flex-shrink:0}
+.bm-bars{display:flex;flex-direction:column;gap:6px}
+.bm-bar-wrap{display:flex;align-items:center;gap:8px}
+.bm-bar-lbl{font-size:10px;color:var(--muted);font-family:'Orbitron',monospace;width:32px;text-align:right}
+.bm-bar-track{flex:1;height:8px;background:rgba(255,255,255,.08);border-radius:4px;overflow:hidden}
+.bm-bar-fill{height:100%;border-radius:4px;transition:width .8s ease}
+.bm-bar-val{font-size:10px;color:var(--muted);font-family:'Orbitron',monospace;width:20px}
+.bm-desc{font-size:13px;color:var(--muted);line-height:1.65}
+.bm-result{font-family:'Orbitron',monospace;font-size:22px;font-weight:900}
+.bm-result.win{color:var(--g);text-shadow:0 0 20px var(--g)}
+.bm-result.lose{color:var(--red);text-shadow:0 0 20px var(--red)}
+.bm-ok{background:rgba(0,255,136,.12);border:1.5px solid var(--g);color:var(--g);
+  padding:14px;border-radius:12px;font-family:'Orbitron',monospace;font-weight:700;
+  font-size:14px;cursor:pointer;letter-spacing:1px;transition:all .15s}
+.bm-ok:active{transform:scale(.96)}
+
+/* CHAT */
+#chat-screen .fsbody{padding:0}
+.chat-top{padding:10px 14px;border-bottom:1px solid var(--border2);flex-shrink:0;
+  display:flex;gap:8px;background:rgba(0,0,0,.3)}
+.chat-code{flex:1;background:rgba(0,0,0,.5);border:1px solid var(--border);
+  border-radius:8px;padding:9px 13px;color:var(--g);font-family:'Orbitron',monospace;
+  font-size:14px;letter-spacing:3px;outline:none;text-transform:uppercase}
+.chat-code:focus{border-color:var(--g)}
+.chat-code::placeholder{color:var(--muted);font-size:10px;letter-spacing:0;font-family:'Rajdhani',sans-serif}
+.btnconn{background:rgba(0,255,136,.08);border:1px solid var(--border);color:var(--g);
+  padding:9px 14px;border-radius:8px;font-family:'Orbitron',monospace;font-size:11px;cursor:pointer;letter-spacing:1px}
+.chat-tbar{padding:6px 14px;border-bottom:1px solid var(--border2);
+  font-family:'Orbitron',monospace;font-size:10px;color:var(--muted);letter-spacing:1px;
+  background:rgba(0,255,136,.03);flex-shrink:0}
+#chat-msgs{flex:1;overflow-y:auto;padding:12px 14px;display:flex;flex-direction:column;gap:8px}
+.cmsg{max-width:78%;border-radius:14px;padding:9px 13px;font-size:14px;line-height:1.45;word-break:break-word}
+.cmsg.me{align-self:flex-end;background:rgba(0,255,136,.15);border:1px solid rgba(0,255,136,.22);
+  color:var(--g);border-radius:14px 14px 3px 14px}
+.cmsg.them{align-self:flex-start;background:rgba(255,255,255,.07);border:1px solid rgba(255,255,255,.1);
+  color:#ddd;border-radius:14px 14px 14px 3px}
+.cmsg.sys{align-self:center;font-size:10px;color:var(--muted);font-family:'Orbitron',monospace;
+  letter-spacing:.5px;background:none;border:none;padding:3px 0}
+.chat-bar{padding:10px 14px max(14px,env(safe-area-inset-bottom));
+  border-top:1px solid var(--border2);flex-shrink:0;display:flex;gap:8px;background:rgba(0,0,0,.4)}
+.msginp{flex:1;background:rgba(0,0,0,.5);border:1px solid var(--border2);
+  border-radius:10px;padding:10px 14px;color:#fff;font-size:14px;outline:none;
+  font-family:'Rajdhani',sans-serif;transition:border-color .2s}
+.msginp:focus{border-color:var(--g)}
+.btnsend{background:var(--g);color:#000;border:none;padding:10px 18px;border-radius:10px;
+  font-family:'Orbitron',monospace;font-weight:900;font-size:16px;cursor:pointer;transition:all .15s}
+.btnsend:active{transform:scale(.92);background:var(--g2)}
+
+/* TOAST */
+#toast{position:fixed;top:max(72px,calc(env(safe-area-inset-top)+60px));
+  left:50%;transform:translateX(-50%) translateY(-14px);
+  background:var(--panel);border:1px solid var(--border);border-radius:12px;
+  padding:11px 20px;color:var(--g);font-weight:700;font-size:13px;
+  z-index:9999;opacity:0;transition:all .3s cubic-bezier(.34,1.56,.64,1);
+  pointer-events:none;max-width:92vw;text-align:center;line-height:1.4;
+  box-shadow:0 8px 32px rgba(0,0,0,.7);backdrop-filter:blur(12px);
+  font-family:'Rajdhani',sans-serif}
+#toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
+#toast.err{color:var(--red);border-color:rgba(255,51,85,.35)}
+#toast.win{color:var(--yellow);border-color:rgba(255,215,0,.35)}
+
+/* START */
+#ov{position:fixed;inset:0;z-index:800;
+  background:radial-gradient(ellipse at 50% 35%,#041a0e 0%,var(--bg) 70%);
+  display:flex;flex-direction:column;align-items:center;justify-content:center;
+  gap:18px;padding:30px;transition:opacity .5s}
+.ov-logo{font-family:'Orbitron',monospace;font-weight:900;font-size:36px;color:var(--g);
+  letter-spacing:6px;text-align:center;line-height:1.2;
+  text-shadow:0 0 32px var(--g),0 0 80px rgba(0,255,136,.18)}
+.ov-logo small{display:block;font-size:11px;letter-spacing:9px;opacity:.45;margin-top:6px;color:var(--text)}
+.ov-feats{display:flex;gap:10px;width:100%;max-width:320px}
+.ov-feat{flex:1;background:var(--gd);border:1px solid var(--border);border-radius:12px;
+  padding:12px 8px;text-align:center}
+.ov-feat-ic{font-size:24px;margin-bottom:5px}
+.ov-feat-tx{font-size:10px;color:var(--muted);line-height:1.4}
+#btn-start{background:linear-gradient(135deg,rgba(0,255,136,.18),rgba(0,204,102,.1));
+  border:2px solid var(--g);color:var(--g);padding:17px 52px;border-radius:16px;
+  font-family:'Orbitron',monospace;font-weight:900;font-size:17px;letter-spacing:4px;
+  cursor:pointer;width:100%;max-width:320px;animation:pbtn 2.5s ease-in-out infinite;transition:transform .15s}
+#btn-start:active{transform:scale(.96)}
+@keyframes pbtn{0%,100%{box-shadow:0 0 18px rgba(0,255,136,.12)}50%{box-shadow:0 0 50px rgba(0,255,136,.4)}}
+.ov-note{font-size:12px;color:var(--yellow);text-align:center;max-width:280px;line-height:1.65;
+  background:rgba(255,215,0,.04);border:1px solid rgba(255,215,0,.16);border-radius:10px;padding:11px 14px}
+#ov-msg{font-size:12px;color:var(--muted);text-align:center;min-height:16px}
+
+@keyframes mapbob{0%,100%{transform:translateY(0)}50%{transform:translateY(-6px)}}
+</style>
+</head>
+<body>
+
+<div id="mapv"></div>
+
+<!-- AR -->
+<div id="arv">
+  <video id="ar-vid" autoplay playsinline muted></video>
+  <div class="scan"></div>
+  <div id="ar-scene"></div>
+  <div id="ar-touch"></div>
+</div>
+<div id="ar-hud">
+  <button class="ar-back" onclick="stopAR()">◀ MAPA</button>
+  <div class="ar-pill">📷 AR MOD</div>
+  <div class="ar-pill" id="compass-pill">🧭 ---</div>
+</div>
+<div id="ar-bot">
+  <div class="ar-tip" id="ar-tip">Traži životinje blizu tebe...</div>
+  <div id="ar-card-wrap" style="display:none">
+    <div class="ar-card">
+      <div class="arc-top">
+        <div class="arc-em" id="arc-em">🦊</div>
+        <div class="arc-info">
+          <div class="arc-name" id="arc-name">Lisica</div>
+          <div class="arc-sub" id="arc-sub">Snaga 2 · 35m</div>
+        </div>
+      </div>
+      <div class="feed-wrap">
+        <div class="feed-header">
+          <span class="feed-lbl">🫐 HRANJENJE</span>
+          <span class="feed-count" id="feed-cnt">0/3</span>
+        </div>
+        <div class="feed-track"><div class="feed-fill" id="feed-fill" style="width:0%"></div></div>
+      </div>
+      <div class="arc-btns">
+        <button class="arc-btn abtn-feed" onclick="doFeed()">🫐 HRANI</button>
+        <button class="arc-btn abtn-kill" onclick="doKill()">⚔️ UBIJ</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- HUD -->
+<div id="hud">
+  <div class="hud-logo">T·WAR</div>
+  <div class="hud-r">
+    <div class="hchip" onclick="togglePanel()">
+      <span class="hchip-icon">🫐</span>
+      <div><span class="hchip-l">BEREIJS</span><span class="hchip-v" id="h-ber">0</span></div>
+    </div>
+    <div class="hchip" onclick="togglePanel()">
+      <span class="hchip-icon">🗺️</span>
+      <div><span class="hchip-l">PLOČICE</span><span class="hchip-v" id="h-til">0</span></div>
+    </div>
+    <div class="gpsdot" id="gpsdot"></div>
+  </div>
+</div>
+
+<!-- PANEL -->
+<div id="panel">
+  <div class="dragpill"></div>
+  <div class="phandle" onclick="togglePanel()">
+    <span class="plbl">KOMANDNI CENTAR</span>
+    <div class="opill"><div class="odot" id="odot"></div><span id="otxt">OFFLINE</span></div>
+  </div>
+  <div class="pbody">
+    <div>
+      <div class="sec">🔑 TVOJ KOD</div>
+      <div class="codebox">
+        <div><div class="codesub">PODIJELI S PRIJATELJEM</div>
+          <div class="codeval" id="my-code">------</div></div>
+        <button class="btncp" onclick="copyCode()">📋 KOPIRAJ</button>
+      </div>
+    </div>
+    <div>
+      <div class="sec">📊 STATISTIKE</div>
+      <div class="srow">
+        <div class="sbox"><div class="sn" id="s-til">0</div><div class="sl">PLOČICE</div></div>
+        <div class="sbox"><div class="sn" id="s-cla">0</div><div class="sl">KLAN</div></div>
+        <div class="sbox"><div class="sn" id="s-ani">0</div><div class="sl">PETOVI</div></div>
+      </div>
+    </div>
+    <div>
+      <div class="sec">🫐 BOROVNICE</div>
+      <div class="brow">
+        <div class="bicon">🫐</div>
+        <div><div class="bcnt" id="p-ber">0</div><div class="blbl">SKUPI NA MAPI</div></div>
+      </div>
+    </div>
+    <div>
+      <div class="sec">⚔️ KLAN</div>
+      <div id="ui-nc">
+        <div class="clan-row">
+          <input id="clan-inp" class="clan-inp" maxlength="6" placeholder="Kod igrača..."/>
+          <button class="btnjoin" onclick="joinClan()">PRIDRUŽI</button>
+        </div>
+        <div class="clhint">Upiši kod drugog igrača → dijeli teritorij, ali NE lokaciju.</div>
+      </div>
+      <div id="ui-ic" style="display:none">
+        <div class="clbox">
+          <div class="clboxtop">
+            <div>
+              <div style="font-size:9px;color:var(--muted);font-family:'Orbitron',monospace;letter-spacing:1px;margin-bottom:5px">KOD KLANA</div>
+              <div class="clbadge" id="cbadge">---</div>
+            </div>
+            <button class="btnleave" onclick="leaveClan()">NAPUSTI ✗</button>
+          </div>
+          <div class="sec" style="margin-bottom:6px">👥 ČLANOVI</div>
+          <div class="mwrap" id="members"></div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- FABs -->
+<button id="fab-rc"     class="fab" onclick="recenter()">📍</button>
+<button id="fab-ar"     class="fab" onclick="toggleAR()">📷</button>
+<button id="fab-stable" class="fab" onclick="openStable()">🐾<span class="fab-bdg" id="sb-bdg" style="display:none">0</span></button>
+<button id="fab-chat"   class="fab" onclick="openFs('chat-screen')">💬</button>
+
+<!-- STABLE -->
+<div id="stable-screen" class="fs">
+  <div class="fshead">
+    <div class="fstitle">🐾 TVOJI PETOVI</div>
+    <button class="fsbtnclose" onclick="closeFs('stable-screen')">✕ ZATVORI</button>
+  </div>
+  <div class="fsbody" id="stable-list"></div>
+</div>
+
+<!-- CHAT -->
+<div id="chat-screen" class="fs">
+  <div class="fshead">
+    <div class="fstitle">💬 PRIVATNI CHAT</div>
+    <button class="fsbtnclose" onclick="closeChat()">✕ ZATVORI</button>
+  </div>
+  <div class="chat-top">
+    <input id="chat-code" class="chat-code" maxlength="6" placeholder="Kod igrača..."/>
+    <button class="btnconn" onclick="connectChat()">SPOJI</button>
+  </div>
+  <div id="chat-tbar" class="chat-tbar" style="display:none"></div>
+  <div id="chat-msgs"></div>
+  <div class="chat-bar">
+    <input id="msg-inp" class="msginp" placeholder="Poruka..." maxlength="200"/>
+    <button class="btnsend" onclick="sendMsg()">➤</button>
+  </div>
+</div>
+
+<!-- DEPLOY MODAL -->
+<div id="deploy-modal">
+  <div class="dm-box">
+    <div class="dm-title">🚀 RASPOREDI PETA</div>
+    <div class="dm-animal" id="dm-em">🦊</div>
+    <div class="dm-desc" id="dm-desc">Pošalji peta na odabranu lokaciju da osvoji teritorij oko sebe.</div>
+    <div class="dm-progress"><div class="dm-fill" id="dm-fill"></div></div>
+    <div class="dm-btns">
+      <button class="dm-btn dm-confirm" id="dm-confirm-btn">POŠALJI</button>
+      <button class="dm-btn dm-cancel" onclick="closeDeploy()">OTKAŽI</button>
+    </div>
+  </div>
+</div>
+
+<!-- COLOR MODAL -->
+<div id="color-modal">
+  <div class="cm-box">
+    <div class="cm-title">🎨 IZABERI BOJU</div>
+    <div class="cm-animal" id="cm-em">🦊</div>
+    <div class="cm-subtitle">Svaka uhvaćena životinja dobija tvoju boju</div>
+    <div class="color-grid" id="color-grid"></div>
+    <button class="cm-confirm" onclick="confirmColor()">✓ POTVRDI</button>
+  </div>
+</div>
+
+<!-- BATTLE MODAL -->
+<div id="battle-modal">
+  <div class="bm-box">
+    <div class="bm-title">⚔️ BORBA!</div>
+    <div class="bm-combatants">
+      <div class="bm-pet"><div class="bm-pet-em" id="bm-my-em">🦊</div><div class="bm-pet-name" id="bm-my-name">MOJ PET</div></div>
+      <div class="bm-vs">VS</div>
+      <div class="bm-pet"><div class="bm-pet-em" id="bm-en-em">🐗</div><div class="bm-pet-name" id="bm-en-name">NEPRIJATELJ</div></div>
+    </div>
+    <div class="bm-bars">
+      <div class="bm-bar-wrap">
+        <div class="bm-bar-lbl">MOJ</div>
+        <div class="bm-bar-track"><div class="bm-bar-fill" id="bm-my-bar" style="background:var(--g)"></div></div>
+        <div class="bm-bar-val" id="bm-my-val"></div>
+      </div>
+      <div class="bm-bar-wrap">
+        <div class="bm-bar-lbl">EN.</div>
+        <div class="bm-bar-track"><div class="bm-bar-fill" id="bm-en-bar" style="background:var(--red)"></div></div>
+        <div class="bm-bar-val" id="bm-en-val"></div>
+      </div>
+    </div>
+    <div class="bm-desc" id="bm-desc"></div>
+    <div class="bm-result" id="bm-result"></div>
+    <button class="bm-ok" onclick="closeBattle()">NASTAVI</button>
+  </div>
+</div>
+
+<!-- START -->
+<div id="ov">
+  <div class="ov-logo">TERITOR<br>WAR<small>LOVAC NA ŽIVOTINJE</small></div>
+  <div class="ov-feats">
+    <div class="ov-feat"><div class="ov-feat-ic">🦫</div><div class="ov-feat-tx">Uhvati i pripitomi životinje</div></div>
+    <div class="ov-feat"><div class="ov-feat-ic">🫐</div><div class="ov-feat-tx">Skupi bereijs i hrani ih</div></div>
+    <div class="ov-feat"><div class="ov-feat-ic">🐉</div><div class="ov-feat-tx">Evolucija i borbe za teritorij</div></div>
+  </div>
+  <button id="btn-start">▶ POKRENI IGRU</button>
+  <div class="ov-note">📍 Dozvoli lokaciju · 📷 AR treba kameru</div>
+  <div id="ov-msg"></div>
+</div>
+
+<div id="toast"></div>
+
+<script>
+// ══════════════════════════════════════════
+//  ANIMALS & EVOLUTIONS
+// ══════════════════════════════════════════
+const BASE = [
+  {type:'capybara', name:'Kapibara', emoji:'🦫', power:1, rarity:.35, maxAge:22*60000, food:2, evoBattles:3},
+  {type:'fox',      name:'Lisica',   emoji:'🦊', power:2, rarity:.28, maxAge:30*60000, food:3, evoBattles:4},
+  {type:'wolf',     name:'Vuk',      emoji:'🐺', power:3, rarity:.20, maxAge:45*60000, food:4, evoBattles:5},
+  {type:'boar',     name:'Vepar',    emoji:'🐗', power:2, rarity:.12, maxAge:26*60000, food:3, evoBattles:4},
+  {type:'dragon',   name:'Zmaj',     emoji:'🐉', power:6, rarity:.05, maxAge:60*60000, food:6, evoBattles:6},
+];
+const EVO = {
+  capybara: {name:'Džinovska Kapibara', emoji:'🦛', power:3},
+  fox:      {name:'Arktička Lisica',    emoji:'🦝', power:5},
+  wolf:     {name:'Shadow Vuk',         emoji:'🐕', power:6},
+  boar:     {name:'War Vepar',          emoji:'🐾', power:5},
+  dragon:   {name:'Elder Zmaj',         emoji:'🦖', power:10},
+};
+const COLORS = [
+  '#00ff88','#ff3355','#ffd700','#44aaff','#ff8800',
+  '#bb77ff','#ff77aa','#00ddff','#aaff44','#ff5500',
+  '#ff2299','#22ffdd','#ffaa00','#8844ff','#44ff88',
+  '#ff4444','#4444ff','#88ff00','#ff88ff','#00ff44',
+];
+
+// ══════════════════════════════════════════
+//  CONFIG
+// ══════════════════════════════════════════
+const TILE=0.0003, RAD=3, DMIN=0.00015, NS='twv9';
+const AR_RANGE=50, MAX_WILD=8, SPAWN_INT=48000;
+const BERRY_INT=35000, MAX_BERRIES=7, FOV_DEG=65;
+const DEPLOY_TIME=20000; // 20s to deploy
+
+// ══════════════════════════════════════════
+//  STATE
+// ══════════════════════════════════════════
+let lmap, myCode, myColor='#00ff88', myClan=null;
+let myTiles=new Set(), clanTiles=new Map(), rects={};
+let myDot=null, lastPos=null, follow=true, panelOpen=false;
+let gun, terrDB, clansDB;
+let wilds=[], stable=[], berries=0, berryMarkers=[];
+let arOn=false, arStream=null, arRAF=null, arLast=0;
+let compass=0, hasCompass=false;
+let selWild=null, feedCounts={};
+let chatTarget=null, chatSub=null;
+let gunQ={}, gunTimer=null;
+let deployTarget=null, deployAnimalId=null;
+let colorPickTarget=null, pickedColor=COLORS[0];
+
+// ══════════════════════════════════════════
+//  LOADERS
+// ══════════════════════════════════════════
+function loadScript(src,cb){
+  const s=document.createElement('script');s.src=src;
+  s.onload=cb||function(){};s.onerror=()=>{if(cb)cb();};
+  document.head.appendChild(s);
+}
+function loadCSS(h){const l=document.createElement('link');l.rel='stylesheet';l.href=h;document.head.appendChild(l);}
+
+// ══════════════════════════════════════════
+//  INIT PLAYER
+// ══════════════════════════════════════════
+function initPlayer(){
+  myCode=localStorage.getItem('tw_code')||'';
+  if(myCode.length!==6){myCode=Math.random().toString(36).slice(2,8).toUpperCase();localStorage.setItem('tw_code',myCode);}
+  myColor=localStorage.getItem('tw_color')||'#00ff88';
+  myClan=localStorage.getItem('tw_clan')||null;
+  berries=+localStorage.getItem('tw_berry')||0;
+  document.getElementById('my-code').textContent=myCode;
+  try{JSON.parse(localStorage.getItem('tw_tiles')||'[]').forEach(k=>myTiles.add(k));}catch(e){}
+  try{stable=JSON.parse(localStorage.getItem('tw_stable')||'[]');}catch(e){}
+  updateBerryUI();updateBadge();
+}
+
+// ══════════════════════════════════════════
+//  MAP
+// ══════════════════════════════════════════
+function initMap(){
+  lmap=L.map('mapv',{zoomControl:false,attributionControl:false,minZoom:14,maxZoom:19})
+    .setView([44.8,20.5],16);
+  L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{maxZoom:19,crossOrigin:true}).addTo(lmap);
+  lmap.on('dragstart',()=>{follow=false;});
+  lmap.on('click',onMapClick);
+  myTiles.forEach(k=>drawRect(k,myColor,.38));
+  updateStats();
+}
+
+function tKey(a,b){return Math.floor(a/TILE)+'_'+Math.floor(b/TILE);}
+function tBounds(k){const[r,c]=k.split('_').map(Number);return[[r*TILE,c*TILE],[(r+1)*TILE,(c+1)*TILE]];}
+function tilesAround(la,ln,r){
+  const r0=Math.floor(la/TILE),c0=Math.floor(ln/TILE),out=[];
+  for(let dy=-r;dy<=r;dy++)for(let dx=-r;dx<=r;dx++)
+    if(Math.sqrt(dx*dx+dy*dy)<=r+.5)out.push((r0+dy)+'_'+(c0+dx));
+  return out;
+}
+function drawRect(k,col,op){
+  if(!lmap)return;
+  if(rects[k]){rects[k].setStyle({fillColor:col,color:col,fillOpacity:op});return;}
+  rects[k]=L.rectangle(tBounds(k),{color:col,weight:.5,fillColor:col,fillOpacity:op,opacity:.4,interactive:false}).addTo(lmap);
+}
+function removeRect(k){if(rects[k]){lmap.removeLayer(rects[k]);delete rects[k];}}
+
+function qTile(k){
+  if(!terrDB)return;
+  gunQ[k]={owner:myCode,color:myColor,clan:myClan||'',ts:Date.now()};
+  if(gunTimer)return;
+  gunTimer=setTimeout(()=>{
+    Object.entries(gunQ).forEach(([key,val])=>{try{terrDB.get(key).put(val);}catch(e){}});
+    gunQ={};gunTimer=null;
+  },2500);
+}
+
+function claimWalk(la,ln){
+  const fresh=tilesAround(la,ln,RAD).filter(k=>!myTiles.has(k));
+  if(!fresh.length)return;
+  fresh.forEach(k=>{myTiles.add(k);drawRect(k,myColor,.38);qTile(k);});
+  try{localStorage.setItem('tw_tiles',JSON.stringify([...myTiles].slice(-3000)));}catch(e){}
+  updateStats();
+}
+
+function claimArea(la,ln,radius){
+  const fresh=tilesAround(la,ln,radius).filter(k=>!myTiles.has(k));
+  if(!fresh.length)return 0;
+  fresh.forEach(k=>{myTiles.add(k);drawRect(k,myColor,.38);qTile(k);});
+  try{localStorage.setItem('tw_tiles',JSON.stringify([...myTiles].slice(-3000)));}catch(e){}
+  updateStats();return fresh.length;
+}
+
+// ══════════════════════════════════════════
+//  MAP CLICK → DEPLOY
+// ══════════════════════════════════════════
+function onMapClick(e){
+  if(panelOpen){setPanelOpen(false);return;}
+  if(!stable.length){toast('Nemaš petova! Uhvati životinju u AR modu.',true);return;}
+  deployTarget={lat:e.latlng.lat,lng:e.latlng.lng};
+  // Show pet picker - use first tamed pet as default
+  deployAnimalId=stable[0].id;
+  showDeployModal();
+}
+
+function showDeployModal(){
+  const a=stable.find(x=>x.id===deployAnimalId);
+  if(!a){closeDeploy();return;}
+  document.getElementById('dm-em').textContent=a.emoji;
+  const d=lastPos?Math.round(dist(lastPos[0],lastPos[1],deployTarget.lat,deployTarget.lng))+'m':'?m';
+  document.getElementById('dm-desc').textContent=
+    a.name+(a.evolved?' (EVOLUCIJA)':'')+' će osvajati do '+a.power+' radijusa (~'+(a.power*33)+'m) oko odabrane tačke ('+d+' odavde).';
+  document.getElementById('dm-fill').style.width='0%';
+  document.getElementById('dm-confirm-btn').onclick=startDeploy;
+  document.getElementById('deploy-modal').style.display='flex';
+}
+
+function startDeploy(){
+  const btn=document.getElementById('dm-confirm-btn');
+  btn.textContent='ŠALJE SE...';btn.onclick=null;
+  const fill=document.getElementById('dm-fill');
+  let pct=0;
+  const iv=setInterval(()=>{
+    pct+=5;fill.style.width=pct+'%';
+    if(pct>=100){
+      clearInterval(iv);
+      finishDeploy();
+    }
+  },DEPLOY_TIME/20);
+}
+
+function finishDeploy(){
+  const a=stable.find(x=>x.id===deployAnimalId);
+  if(!a||!deployTarget){closeDeploy();return;}
+  const n=claimArea(deployTarget.lat,deployTarget.lng,a.power);
+  // Show marker
+  if(lmap){
+    const m=L.marker([deployTarget.lat,deployTarget.lng],{
+      icon:L.divIcon({html:`<div style="font-size:22px;opacity:.7">${a.emoji}</div>`,className:'',iconSize:[26,26],iconAnchor:[13,13]}),
+      zIndexOffset:400
+    }).addTo(lmap);
+    setTimeout(()=>{try{lmap.removeLayer(m);}catch(e){}},4000);
+  }
+  closeDeploy();
+  toast(a.emoji+' '+a.name+' je osvoji'+n+' pločica! 🗺️','win');
+}
+
+function closeDeploy(){
+  document.getElementById('deploy-modal').style.display='none';
+  deployTarget=null;deployAnimalId=null;
+  document.getElementById('dm-confirm-btn').textContent='POŠALJI';
+  document.getElementById('dm-fill').style.width='0%';
+}
+
+// ══════════════════════════════════════════
+//  GPS + START
+// ══════════════════════════════════════════
+document.getElementById('btn-start').onclick=function(){
+  const msg=document.getElementById('ov-msg'),btn=this;
+  if(!navigator.geolocation){msg.style.color='var(--red)';msg.textContent='❌ GPS nije podržan.';return;}
+  btn.textContent='⏳ Tražim GPS...';btn.style.opacity='.55';btn.onclick=null;
+  msg.style.color='var(--muted)';msg.textContent='Dozvoli pristup lokaciji...';
+  navigator.geolocation.getCurrentPosition(pos=>{
+    const ov=document.getElementById('ov');ov.style.opacity='0';
+    setTimeout(()=>{
+      ov.style.display='none';showGame();onPos(pos);
+      navigator.geolocation.watchPosition(onPos,onGPSErr,{enableHighAccuracy:true,maximumAge:5000,timeout:30000});
+    },450);
+  },err=>{
+    btn.textContent='▶ POKUŠAJ PONOVO';btn.style.opacity='1';
+    btn.onclick=document.getElementById('btn-start').onclick;
+    msg.style.color='var(--red)';
+    if(err.code===1)msg.innerHTML='❌ Odbijena! Podešavanja → Browser → Lokacija → Dozvoli';
+    else if(err.code===2)msg.textContent='📡 Nema GPS. Idi napolje.';
+    else msg.textContent='⏱ Timeout. Provjeri GPS.';
+  },{enableHighAccuracy:true,timeout:20000,maximumAge:0});
+};
+
+function showGame(){
+  document.getElementById('hud').style.display='flex';
+  document.getElementById('panel').style.display='block';
+  ['fab-rc','fab-ar','fab-stable','fab-chat'].forEach(id=>document.getElementById(id).style.display='flex');
+  initCompass();
+  loadScript('https://cdn.jsdelivr.net/npm/gun/gun.js',initGun);
+  updateClanUI();
+  buildColorGrid();
+  setTimeout(spawnWild,3000);setInterval(spawnWild,SPAWN_INT);
+  setTimeout(spawnBerry,5000);setInterval(spawnBerry,BERRY_INT);
+  setInterval(tickAge,60000);
+  toast('Dobrodošao '+myCode+'! Tapni mapu da rasporediš peta 📍');
+}
+
+function onPos(pos){
+  const lat=pos.coords.latitude,lng=pos.coords.longitude;
+  setGPS('ok');
+  const ll=L.latLng(lat,lng);
+  if(!myDot)myDot=L.circleMarker(ll,{radius:9,fillColor:myColor,fillOpacity:1,color:'#fff',weight:2}).addTo(lmap);
+  else myDot.setLatLng(ll);
+  if(follow)lmap.setView(ll,lmap.getZoom()<16?17:lmap.getZoom());
+  if(lastPos&&Math.hypot(lat-lastPos[0],lng-lastPos[1])<DMIN)return;
+  lastPos=[lat,lng];
+  claimWalk(lat,lng);
+}
+function onGPSErr(e){setGPS('err');toast({1:'❌ Lokacija odbijena!',2:'📡 GPS nedostupan.',3:'⏱ GPS timeout.'}[e.code]||'GPS greška',true);}
+
+// ══════════════════════════════════════════
+//  MATH
+// ══════════════════════════════════════════
+function dist(a,b,c,d){
+  const R=6371000,dL=(c-a)*Math.PI/180,dN=(d-b)*Math.PI/180;
+  const x=Math.sin(dL/2)**2+Math.cos(a*Math.PI/180)*Math.cos(c*Math.PI/180)*Math.sin(dN/2)**2;
+  return R*2*Math.atan2(Math.sqrt(x),Math.sqrt(1-x));
+}
+function bearing(a,b,c,d){
+  const dN=(d-b)*Math.PI/180;
+  const y=Math.sin(dN)*Math.cos(c*Math.PI/180);
+  const x=Math.cos(a*Math.PI/180)*Math.sin(c*Math.PI/180)-Math.sin(a*Math.PI/180)*Math.cos(c*Math.PI/180)*Math.cos(dN);
+  return(Math.atan2(y,x)*180/Math.PI+360)%360;
+}
+
+// ══════════════════════════════════════════
+//  BERRIES
+// ══════════════════════════════════════════
+function spawnBerry(){
+  if(!lastPos||berryMarkers.filter(b=>!b.gone).length>=MAX_BERRIES)return;
+  const[la,ln]=lastPos,dd=(8+Math.random()*32)/111000,ang=Math.random()*2*Math.PI;
+  const blat=la+dd*Math.cos(ang),blng=ln+(dd*Math.sin(ang))/Math.cos(la*Math.PI/180);
+  const ic=['🫐','🍓','🍇'][Math.floor(Math.random()*3)];
+  const m=L.marker([blat,blng],{
+    icon:L.divIcon({html:`<div style="font-size:26px;animation:mapbob 2s ease-in-out infinite;cursor:pointer;filter:drop-shadow(0 3px 8px rgba(0,0,0,.7))">${ic}</div>`,
+      className:'',iconSize:[28,28],iconAnchor:[14,14]}),zIndexOffset:600
+  }).addTo(lmap);
+  const b={lat:blat,lng:blng,marker:m,gone:false};
+  m.on('click',()=>pickBerry(b));
+  berryMarkers.push(b);
+  setTimeout(()=>dropBerry(b),100000);
+}
+function pickBerry(b){
+  if(b.gone||!lastPos)return;
+  if(dist(lastPos[0],lastPos[1],b.lat,b.lng)>35){toast('Previše daleko! 🫐',true);return;}
+  dropBerry(b);
+  const n=1+Math.floor(Math.random()*2);
+  berries+=n;localStorage.setItem('tw_berry',berries);updateBerryUI();
+  toast('🫐 +'+n+' borovnica! ('+berries+' ukupno)');
+}
+function dropBerry(b){
+  if(b.gone)return;b.gone=true;try{lmap.removeLayer(b.marker);}catch(e){}
+}
+function updateBerryUI(){
+  document.getElementById('h-ber').textContent=berries;
+  document.getElementById('p-ber').textContent=berries;
+}
+
+// ══════════════════════════════════════════
+//  WILD SPAWN
+// ══════════════════════════════════════════
+function spawnWild(){
+  if(!lastPos||wilds.filter(w=>!w.dead).length>=MAX_WILD)return;
+  let rr=Math.random(),cum=0,T=BASE[0];
+  for(const t of BASE){cum+=t.rarity;if(rr<cum){T=t;break;}}
+  const[la,ln]=lastPos;
+  let wlat,wlng,found=false;
+  for(let i=0;i<6;i++){
+    const dd=(18+Math.random()*55)/111000,ang=Math.random()*2*Math.PI;
+    const tla=la+dd*Math.cos(ang),tln=ln+(dd*Math.sin(ang))/Math.cos(la*Math.PI/180);
+    if(!myTiles.has(tKey(tla,tln))){wlat=tla;wlng=tln;found=true;break;}
+  }
+  if(!found){const dd=68/111000,ang=Math.random()*2*Math.PI;wlat=la+dd*Math.cos(ang);wlng=ln+(dd*Math.sin(ang))/Math.cos(la*Math.PI/180);}
+  const m=L.marker([wlat,wlng],{
+    icon:L.divIcon({html:`<div style="font-size:30px;animation:mapbob 2.2s ease-in-out infinite;cursor:pointer;filter:drop-shadow(0 4px 12px rgba(0,0,0,.8))">${T.emoji}</div>`,
+      className:'',iconSize:[34,34],iconAnchor:[17,17]}),zIndexOffset:500
+  }).addTo(lmap);
+  const w={id:'w'+Date.now().toString(36)+Math.random().toString(36).slice(2,4),...T,
+    lat:wlat,lng:wlng,dead:false,marker:m};
+  m.on('click',()=>toast('📷 Otvori AR · Priđi <50m'));
+  wilds.push(w);
+  setTimeout(()=>{w.dead=true;try{lmap.removeLayer(w.marker);}catch(e){}},5*60000);
+  const dm=found?Math.round(dist(la,ln,wlat,wlng))+'m':'~70m';
+  toast(T.emoji+' '+T.name+' na '+dm+'!');
+}
+
+// ══════════════════════════════════════════
+//  COMPASS
+// ══════════════════════════════════════════
+function initCompass(){
+  const h=e=>{
+    if(e.webkitCompassHeading!=null&&!isNaN(e.webkitCompassHeading)){compass=e.webkitCompassHeading;hasCompass=true;}
+    else if(e.alpha!=null){compass=(360-e.alpha+360)%360;hasCompass=true;}
+  };
+  window._ch=h;
+  window.addEventListener('deviceorientationabsolute',h,true);
+  window.addEventListener('deviceorientation',h,true);
+}
+async function iosCompass(){
+  if(typeof DeviceOrientationEvent!=='undefined'&&typeof DeviceOrientationEvent.requestPermission==='function'){
+    try{const r=await DeviceOrientationEvent.requestPermission();if(r==='granted'&&window._ch)window.addEventListener('deviceorientation',window._ch,true);}catch(e){}
+  }
+}
+
+// ══════════════════════════════════════════
+//  AR
+// ══════════════════════════════════════════
+async function toggleAR(){if(arOn)stopAR();else await startAR();}
+
+async function startAR(){
+  if(!navigator.mediaDevices?.getUserMedia){toast('❌ Kamera nije podržana!',true);return;}
+  try{
+    await iosCompass();
+    arStream=await navigator.mediaDevices.getUserMedia({
+      video:{facingMode:{ideal:'environment'},width:{ideal:1280},height:{ideal:720}},audio:false
+    });
+    document.getElementById('ar-vid').srcObject=arStream;
+    document.getElementById('arv').style.display='block';
+    document.getElementById('ar-hud').style.display='flex';
+    document.getElementById('ar-bot').style.display='block';
+    document.getElementById('hud').style.display='none';
+    document.getElementById('panel').style.display='none';
+    ['fab-rc','fab-stable','fab-chat'].forEach(id=>document.getElementById(id).style.display='none');
+    document.getElementById('fab-ar').classList.add('on');
+    arOn=true;selWild=null;
+    arRAF=requestAnimationFrame(arFrame);
+  }catch(e){
+    toast(e.name==='NotAllowedError'?'❌ Dozvoli kameru!':'❌ Greška kamere. Pokušaj u Chrome-u.',true);
+  }
+}
+
+function stopAR(){
+  arOn=false;
+  if(arRAF){cancelAnimationFrame(arRAF);arRAF=null;}
+  if(arStream){arStream.getTracks().forEach(t=>t.stop());arStream=null;}
+  document.getElementById('arv').style.display='none';
+  document.getElementById('ar-hud').style.display='none';
+  document.getElementById('ar-bot').style.display='none';
+  document.getElementById('ar-scene').innerHTML='';
+  document.getElementById('ar-card-wrap').style.display='none';
+  selWild=null;
+  document.getElementById('hud').style.display='flex';
+  document.getElementById('panel').style.display='block';
+  ['fab-rc','fab-stable','fab-chat'].forEach(id=>document.getElementById(id).style.display='flex');
+  document.getElementById('fab-ar').classList.remove('on');
+}
+
+function arFrame(ts){
+  if(!arOn)return;
+  arRAF=requestAnimationFrame(arFrame);
+  if(ts-arLast<85)return;
+  arLast=ts;
+  renderAR();
+}
+
+function renderAR(){
+  const scene=document.getElementById('ar-scene');
+  const W=window.innerWidth,H=window.innerHeight;
+  const dirs=['S','JI','I','SI','N','SZ','Z','JZ'];
+  document.getElementById('compass-pill').textContent=
+    hasCompass?'🧭 '+Math.round(compass)+'° '+dirs[Math.round(compass/45)%8]:'🧭 ---';
+
+  if(!lastPos){document.getElementById('ar-tip').textContent='⏳ Čeka se GPS...';scene.innerHTML='';return;}
+  const[mlat,mlng]=lastPos;
+  const nearby=wilds.filter(w=>!w.dead&&dist(mlat,mlng,w.lat,w.lng)<=AR_RANGE);
+
+  const activeIds=new Set(nearby.map(w=>w.id));
+  scene.querySelectorAll('.ara').forEach(el=>{if(!activeIds.has(el.dataset.id))el.remove();});
+
+  if(!nearby.length){
+    const any=wilds.filter(w=>!w.dead).length;
+    document.getElementById('ar-tip').textContent=any?'📡 Priđi životinjama — vidiš ih na mapi':'🌍 Nema životinja. Čekaj spawn...';
+    if(selWild){selWild=null;document.getElementById('ar-card-wrap').style.display='none';}
+    return;
+  }
+  document.getElementById('ar-tip').textContent='👆 TAPNI životinju';
+
+  const ppd=W/FOV_DEG;
+  nearby.forEach((w,idx)=>{
+    let relAng=hasCompass?bearing(mlat,mlng,w.lat,w.lng)-compass:(nearby.length>1?(idx/(nearby.length-1)-.5)*50:0);
+    while(relAng>180)relAng-=360;while(relAng<-180)relAng+=360;
+    if(hasCompass&&Math.abs(relAng)>FOV_DEG/2+22)return;
+    const d=Math.max(1,dist(mlat,mlng,w.lat,w.lng));
+    const cx=W/2+relAng*ppd, cy=H*.38+d/AR_RANGE*H*.18;
+    const sz=Math.max(58,Math.min(155,3600/d));
+    const fz=Math.round(sz*.62), lz=Math.max(9,Math.round(sz*.12));
+    const isSel=selWild&&selWild.id===w.id;
+    const glow=isSel?`drop-shadow(0 0 20px ${myColor}) drop-shadow(0 0 40px ${myColor}66)`:'drop-shadow(0 5px 14px rgba(0,0,0,.9))';
+    const dm=d<8?'<8m':Math.round(d)+'m';
+
+    let el=scene.querySelector('[data-id="'+w.id+'"]');
+    if(!el){
+      el=document.createElement('div');el.className='ara';el.dataset.id=w.id;
+      el.addEventListener('click',()=>selectWild(w.id));
+      scene.appendChild(el);
+    }
+    el.style.cssText=`left:${cx-sz/2}px;top:${cy-sz/2}px;width:${sz}px;height:${sz}px`;
+    if(isSel)el.classList.add('sel');else el.classList.remove('sel');
+    el.innerHTML=`<div class="ara-body" style="width:${sz}px">
+      <div class="ara-shadow" style="width:${sz*.68}px;height:${sz*.13}px"></div>
+      <div class="ara-em" style="font-size:${fz}px;filter:${glow};text-align:center;line-height:1">${w.emoji}</div>
+    </div>
+    <div class="ara-lbl" style="color:${isSel?myColor:'rgba(255,255,255,.85)'};font-size:${lz}px">${w.name}<br><span class="ara-dist">${dm}</span></div>`;
+  });
+
+  // Update card
+  if(selWild&&!selWild.dead){
+    const fc=feedCounts[selWild.id]||0;
+    const pct=fc/selWild.food*100;
+    const d=Math.round(dist(mlat,mlng,selWild.lat,selWild.lng));
+    document.getElementById('arc-em').textContent=selWild.emoji;
+    document.getElementById('arc-name').textContent=selWild.name;
+    document.getElementById('arc-sub').textContent='Snaga '+selWild.power+' · '+d+'m · Bereijs: '+berries;
+    document.getElementById('feed-cnt').textContent=fc+'/'+selWild.food;
+    document.getElementById('feed-fill').style.width=pct+'%';
+    document.getElementById('ar-card-wrap').style.display='block';
+  }
+}
+
+function selectWild(id){
+  const w=wilds.find(a=>a.id===id);if(!w||w.dead)return;
+  selWild=w;
+  const el=document.getElementById('ar-scene').querySelector('[data-id="'+id+'"]');
+  if(el){const ring=document.createElement('div');ring.className='tap-ring';ring.style.borderColor=myColor;el.appendChild(ring);setTimeout(()=>ring.remove(),600);}
+}
+
+function doFeed(){
+  if(!selWild||selWild.dead){toast('Nema odabrane životinje!',true);return;}
+  if(berries<=0){toast('Nemaš borovnica! Skupi ih na mapi 🗺️',true);return;}
+  berries--;localStorage.setItem('tw_berry',berries);updateBerryUI();
+  feedCounts[selWild.id]=(feedCounts[selWild.id]||0)+1;
+  const fc=feedCounts[selWild.id];
+  if(fc>=selWild.food){showColorPicker(selWild);}
+  else toast('🫐 Hranjeno! ('+fc+'/'+selWild.food+')');
+}
+
+function doKill(){
+  if(!selWild||selWild.dead){toast('Nema odabrane životinje!',true);return;}
+  const w=selWild;selWild=null;w.dead=true;
+  try{lmap.removeLayer(w.marker);}catch(e){}
+  document.getElementById('ar-scene').querySelector('[data-id="'+w.id+'"]')?.remove();
+  delete feedCounts[w.id];
+  document.getElementById('ar-card-wrap').style.display='none';
+  const n=claimArea(w.lat,w.lng,w.power);
+  const drops=1+Math.floor(Math.random()*w.power);
+  berries+=drops;localStorage.setItem('tw_berry',berries);updateBerryUI();
+  toast(w.emoji+' ubijen! +'+drops+' 🫐'+(n?' +'+n+' pločica':''),'win');
+}
+
+// ══════════════════════════════════════════
+//  COLOR PICKER
+// ══════════════════════════════════════════
+function buildColorGrid(){
+  const grid=document.getElementById('color-grid');
+  grid.innerHTML='';
+  COLORS.forEach((col,i)=>{
+    const sw=document.createElement('div');
+    sw.className='color-swatch'+(i===0?' selected':'');
+    sw.style.background=col;sw.style.color=col;
+    sw.dataset.color=col;
+    sw.onclick=()=>{
+      grid.querySelectorAll('.color-swatch').forEach(s=>s.classList.remove('selected'));
+      sw.classList.add('selected');pickedColor=col;
+    };
+    grid.appendChild(sw);
+  });
+  // Select current myColor
+  const cur=grid.querySelector('[data-color="'+myColor+'"]');
+  if(cur){grid.querySelectorAll('.color-swatch').forEach(s=>s.classList.remove('selected'));cur.classList.add('selected');pickedColor=myColor;}
+}
+
+function showColorPicker(wild){
+  colorPickTarget=wild;
+  document.getElementById('cm-em').textContent=wild.emoji;
+  pickedColor=myColor;
+  document.getElementById('color-modal').style.display='flex';
+}
+
+function confirmColor(){
+  myColor=pickedColor;
+  localStorage.setItem('tw_color',myColor);
+  // Update player dot color
+  if(myDot)myDot.setStyle({fillColor:myColor});
+  document.getElementById('color-modal').style.display='none';
+  if(colorPickTarget)tame(colorPickTarget);
+  colorPickTarget=null;
+}
+
+// ══════════════════════════════════════════
+//  TAME + EVOLVE
+// ══════════════════════════════════════════
+function tame(w){
+  w.dead=true;
+  try{lmap.removeLayer(w.marker);}catch(e){}
+  document.getElementById('ar-scene').querySelector('[data-id="'+w.id+'"]')?.remove();
+  delete feedCounts[w.id];selWild=null;
+  document.getElementById('ar-card-wrap').style.display='none';
+  const pet={
+    id:'p'+Date.now().toString(36),
+    type:w.type,name:w.name,emoji:w.emoji,power:w.power,
+    maxAge:w.maxAge,evoBattles:w.evoBattles,
+    color:myColor,bornAt:Date.now(),hp:w.power*10,battles:0,evolved:false
+  };
+  stable.push(pet);
+  try{localStorage.setItem('tw_stable',JSON.stringify(stable));}catch(e){}
+  updateBadge();updateStats();
+  toast(w.emoji+' '+w.name+' PRIPITOMLJEN! 🐾 Boja: sačuvana','win');
+}
+
+function checkEvo(pet){
+  if(pet.evolved||!EVO[pet.type])return false;
+  if(pet.battles<pet.evoBattles)return false;
+  const e=EVO[pet.type];
+  pet.evolved=true;pet.name=e.name;pet.emoji=e.emoji;pet.power=e.power;
+  try{localStorage.setItem('tw_stable',JSON.stringify(stable));}catch(e){}
+  return true;
+}
+
+// ══════════════════════════════════════════
+//  AGING
+// ══════════════════════════════════════════
+function tickAge(){
+  const now=Date.now();let died=false;
+  stable=stable.filter(a=>{
+    if(now-a.bornAt>a.maxAge){toast(a.emoji+' '+a.name+' ostario i umro ⚰️');died=true;return false;}
+    return true;
+  });
+  if(died){try{localStorage.setItem('tw_stable',JSON.stringify(stable));}catch(e){}updateBadge();updateStats();}
+}
+
+// ══════════════════════════════════════════
+//  STABLE
+// ══════════════════════════════════════════
+function openStable(){openFs('stable-screen');renderStable();}
+
+function renderStable(){
+  const list=document.getElementById('stable-list');
+  if(!stable.length){
+    list.innerHTML=`<div class="empty-s"><div class="empty-ic">🐾</div>
+      <div class="empty-tx">Staja je prazna!<br><br>📷 Otvori AR · nađi životinju<br>🫐 Hrani je da je pripitomiš<br>🎨 Izaberi boju kad je uhvatiš</div></div>`;
+    return;
+  }
+  list.innerHTML='';
+  const now=Date.now();
+  stable.forEach(a=>{
+    const age=now-a.bornAt,pct=Math.min(100,age/a.maxAge*100);
+    const remain=Math.max(0,Math.round((a.maxAge-age)/60000));
+    const col=pct<50?'var(--g)':pct<80?'var(--yellow)':'var(--red)';
+    const card=document.createElement('div');
+    card.className='pcard'+(a.evolved?' evolved':'');
+    card.innerHTML=`<div class="pcard-in">
+      <div class="pcard-left" style="font-size:${a.evolved?'48px':'52px'}">
+        ${a.emoji}${a.evolved?'<div class="evo-badge">EVO</div>':''}
+      </div>
+      <div class="pcard-right">
+        <div class="pcard-name" style="color:${a.color||'var(--g)'}">${a.name}</div>
+        <div class="pcard-chips">
+          <span class="pchip">⚡ Snaga ${a.power}</span>
+          <span class="pchip">⚔️ ${a.battles} borbi</span>
+          <span class="pchip" style="background:${(a.color||'#0f0')}22;color:${a.color||'var(--g)'};border:1px solid ${a.color||'var(--g)'}44">⬤ ${a.color||'default'}</span>
+        </div>
+        <div class="age-bar-wrap">
+          <div class="age-track"><div class="age-fill" style="width:${pct}%;background:${col}"></div></div>
+          <div class="age-meta"><span class="age-lbl">STAROST</span><span class="age-lbl">${remain} min do smrti</span></div>
+        </div>
+        <div class="pcard-btns">
+          <button class="pbtndep" onclick="prepareDeploy('${a.id}')">🚀 RASPOREDI NA MAPI</button>
+          <button class="pbtnkill" onclick="killPet('${a.id}')">💀</button>
+        </div>
+      </div>
+    </div>`;
+    list.appendChild(card);
+  });
+}
+
+function prepareDeploy(id){
+  deployAnimalId=id;
+  closeFs('stable-screen');
+  toast('Tapni na mapu gdje hoćeš da pošalješ peta 📍');
+}
+
+function battle(id){
+  if(!lastPos){toast('Nema GPS!',true);return;}
+  const mine=stable.find(a=>a.id===id);if(!mine)return;
+  const near=wilds.filter(w=>!w.dead&&dist(lastPos[0],lastPos[1],w.lat,w.lng)<90);
+  if(!near.length){toast('Nema divljih životinja u blizini (<90m)!',true);return;}
+  const enemy=near[Math.floor(Math.random()*near.length)];
+  const myR=mine.power+Math.random()*2.5;
+  const enR=enemy.power+Math.random()*2.5;
+  const win=myR>=enR;
+  const myMaxHp=mine.power*10, enMaxHp=enemy.power*10;
+  const myHpLeft=win?Math.max(1,Math.round(myMaxHp*(1-(enR/myR)*.5))):0;
+  const enHpLeft=win?0:Math.max(0,Math.round(enMaxHp*(1-(myR/enR)*.5)));
+
+  document.getElementById('bm-my-em').textContent=mine.emoji;
+  document.getElementById('bm-my-name').textContent=mine.name.toUpperCase();
+  document.getElementById('bm-en-em').textContent=enemy.emoji;
+  document.getElementById('bm-en-name').textContent=enemy.name.toUpperCase();
+  document.getElementById('bm-my-bar').style.width='100%';
+  document.getElementById('bm-en-bar').style.width='100%';
+  document.getElementById('bm-my-val').textContent=myMaxHp;
+  document.getElementById('bm-en-val').textContent=enMaxHp;
+  document.getElementById('bm-desc').textContent='';
+  document.getElementById('bm-result').textContent='';
+  document.getElementById('battle-modal').style.display='flex';
+
+  // Animate bars after short delay
+  setTimeout(()=>{
+    const myPct=win?Math.round(myHpLeft/myMaxHp*100):0;
+    const enPct=win?0:Math.round(enHpLeft/enMaxHp*100);
+    document.getElementById('bm-my-bar').style.width=myPct+'%';
+    document.getElementById('bm-en-bar').style.width=enPct+'%';
+    document.getElementById('bm-my-val').textContent=myHpLeft;
+    document.getElementById('bm-en-val').textContent=enHpLeft;
+    setTimeout(()=>{
+      let desc='';let n=0;
+      if(win){
+        enemy.dead=true;try{lmap.removeLayer(enemy.marker);}catch(e){}
+        n=claimArea(enemy.lat,enemy.lng,mine.power);
+        mine.battles++;
+        if(n)desc='+'+n+' novih pločica!';
+        if(checkEvo(mine))desc+=' 🌟 EVOLUCIJA! → '+mine.name+'!';
+        document.getElementById('bm-result').textContent='🏆 POBJEDA!';
+        document.getElementById('bm-result').className='bm-result win';
+      } else {
+        mine.hp=Math.max(0,(mine.hp||10)-Math.ceil(enemy.power/2));
+        mine.battles++;
+        if(mine.hp<=0){desc=mine.name+' poginuo u borbi...';stable=stable.filter(a=>a.id!==id);}
+        else desc='HP: '+mine.hp+'/'+mine.power*10;
+        document.getElementById('bm-result').textContent='💀 PORAZ';
+        document.getElementById('bm-result').className='bm-result lose';
+      }
+      document.getElementById('bm-desc').textContent=desc;
+      try{localStorage.setItem('tw_stable',JSON.stringify(stable));}catch(e){}
+      updateBadge();updateStats();
+    },900);
+  },400);
+}
+
+function closeBattle(){
+  document.getElementById('battle-modal').style.display='none';
+  if(document.getElementById('stable-screen').style.display==='flex')renderStable();
+}
+
+function killPet(id){
+  stable=stable.filter(a=>a.id!==id);
+  try{localStorage.setItem('tw_stable',JSON.stringify(stable));}catch(e){}
+  updateBadge();updateStats();renderStable();toast('Pet uklonjen iz staje.');
+}
+
+// ══════════════════════════════════════════
+//  GUN
+// ══════════════════════════════════════════
+function initGun(){
+  if(!window.Gun)return;
+  try{
+    gun=new Gun(['https://gun-manhattan.herokuapp.com/gun','https://gun-us.herokuapp.com/gun']);
+    terrDB=gun.get(NS+'_t');clansDB=gun.get(NS+'_c');
+    gun.get(NS+'_p').get(myCode).put({color:myColor,clan:myClan||'',ts:Date.now()});
+    setTimeout(()=>setOnline(true),5000);
+    terrDB.map().on((d,k)=>{
+      if(!d||!d.owner||!k?.includes('_'))return;
+      if(d.owner===myCode||!myClan||d.clan!==myClan)return;
+      const o=d.owner;if(!clanTiles.has(o))clanTiles.set(o,new Set());
+      if(!clanTiles.get(o).has(k)){clanTiles.get(o).add(k);drawRect(k,d.color||'#4488ff',.25);updateStats();}
+    });
+    if(myClan)listenClan(myClan);
+  }catch(e){console.warn('Gun:',e);}
+}
+
+// ══════════════════════════════════════════
+//  CLAN
+// ══════════════════════════════════════════
+function joinClan(){
+  const inp=document.getElementById('clan-inp'),code=inp.value.trim().toUpperCase().slice(0,6);
+  if(code.length<4){toast('Min. 4 znaka!',true);return;}
+  if(code===myCode){toast('Ne možeš se pridružiti svom klanu!',true);return;}
+  if(code===myClan){toast('Već si u ovom klanu!',true);return;}
+  if(myClan)leaveClan(true);
+  myClan=code;localStorage.setItem('tw_clan',myClan);
+  if(gun)try{
+    clansDB.get(myClan).get('m').get(myCode).put({code:myCode,color:myColor,ts:Date.now()});
+    gun.get(NS+'_p').get(myCode).put({color:myColor,clan:myClan,ts:Date.now()});
+    listenClan(myClan);
+  }catch(e){}
+  inp.value='';updateClanUI();toast('Pridružio si se klanu '+myClan+'! ✅');
+}
+function leaveClan(s){
+  if(!myClan)return;
+  if(gun)try{clansDB.get(myClan).get('m').get(myCode).put(null);gun.get(NS+'_p').get(myCode).put({color:myColor,clan:'',ts:Date.now()});}catch(e){}
+  clanTiles.forEach(st=>st.forEach(k=>{if(!myTiles.has(k))removeRect(k);}));clanTiles.clear();
+  const old=myClan;myClan=null;localStorage.removeItem('tw_clan');
+  updateClanUI();updateStats();if(!s)toast('Napustio si klan '+old+'!');
+}
+function listenClan(id){if(!gun)return;try{clansDB.get(id).get('m').map().on((d,code)=>{
+  if(!d||!code||code.length<4||code==='_')return;addMember(code,d.color||'#4488ff');});}catch(e){}}
+function addMember(code,color){
+  if(document.getElementById('mt-'+code))return;
+  const wrap=document.getElementById('members');
+  const t=document.createElement('div');t.className='mtag';t.id='mt-'+code;
+  t.style.cssText='border-color:'+color+'44;background:'+color+'14;color:'+color;
+  t.innerHTML='<div class="mdot" style="background:'+color+'"></div>'+code+(code===myCode?' ◀':'');
+  wrap.appendChild(t);updateStats();
+}
+function updateClanUI(){
+  const nc=document.getElementById('ui-nc'),ic=document.getElementById('ui-ic');
+  if(myClan){nc.style.display='none';ic.style.display='block';document.getElementById('cbadge').textContent=myClan;addMember(myCode,myColor);}
+  else{nc.style.display='block';ic.style.display='none';document.getElementById('members').innerHTML='';}
+}
+
+// ══════════════════════════════════════════
+//  CHAT
+// ══════════════════════════════════════════
+function connectChat(){
+  const code=document.getElementById('chat-code').value.trim().toUpperCase().slice(0,6);
+  if(code.length<4){toast('Min. 4 znaka!',true);return;}
+  if(code===myCode){toast('Ne možeš chatati sa sobom!',true);return;}
+  if(!gun){toast('Čeka se veza...',true);return;}
+  chatTarget=code;
+  const bar=document.getElementById('chat-tbar');bar.style.display='block';bar.textContent='💬 Chat sa: '+code;
+  document.getElementById('chat-msgs').innerHTML='';
+  if(chatSub)try{chatSub.off();}catch(e){}
+  const room=NS+'_chat_'+[myCode,code].sort().join('_');
+  chatSub=gun.get(room).map().on((msg,key)=>{
+    if(!msg||!msg.txt||!msg.from)return;
+    appendMsg(msg.from===myCode?'me':'them',msg.txt,key);
+  });
+  addSys('Veza uspostavljena ✓');
+}
+function sendMsg(){
+  const inp=document.getElementById('msg-inp'),txt=inp.value.trim();if(!txt)return;
+  if(!chatTarget){toast('Spoji se s igračem!',true);return;}
+  if(!gun){toast('Nema veze!',true);return;}
+  const room=NS+'_chat_'+[myCode,chatTarget].sort().join('_');
+  const key=Date.now().toString();
+  gun.get(room).get(key).put({from:myCode,txt,ts:Date.now()});
+  appendMsg('me',txt,key);inp.value='';
+  document.getElementById('chat-msgs').scrollTop=9e9;
+}
+function appendMsg(who,txt,key){
+  if(document.querySelector('[data-key="'+key+'"]'))return;
+  const msgs=document.getElementById('chat-msgs');
+  const d=document.createElement('div');d.className='cmsg '+who;d.dataset.key=key;d.textContent=txt;
+  msgs.appendChild(d);msgs.scrollTop=9e9;
+}
+function addSys(txt){
+  const d=document.createElement('div');d.className='cmsg sys';d.textContent=txt;
+  document.getElementById('chat-msgs').appendChild(d);
+}
+function closeChat(){
+  if(chatSub)try{chatSub.off();}catch(e){}chatSub=null;chatTarget=null;closeFs('chat-screen');
+}
+document.getElementById('msg-inp').addEventListener('keydown',e=>{if(e.key==='Enter'&&!e.shiftKey){e.preventDefault();sendMsg();}});
+document.getElementById('chat-code').addEventListener('input',e=>e.target.value=e.target.value.toUpperCase());
+
+// ══════════════════════════════════════════
+//  UI
+// ══════════════════════════════════════════
+function updateStats(){
+  const ct=[...clanTiles.values()].reduce((s,st)=>s+st.size,0);
+  document.getElementById('h-til').textContent=myTiles.size;
+  document.getElementById('s-til').textContent=myTiles.size;
+  document.getElementById('s-cla').textContent=ct;
+  document.getElementById('s-ani').textContent=stable.length;
+}
+function updateBadge(){
+  const n=stable.length,b=document.getElementById('sb-bdg');
+  if(n){b.textContent=n;b.style.display='flex';}else b.style.display='none';
+}
+function setGPS(s){document.getElementById('gpsdot').className='gpsdot'+(s==='ok'?' ok':s==='err'?' err':'');}
+function setOnline(on){document.getElementById('odot').className='odot'+(on?' on':'');document.getElementById('otxt').textContent=on?'ONLINE':'OFFLINE';}
+function setPanelOpen(v){panelOpen=v;document.getElementById('panel').classList.toggle('open',v);}
+function togglePanel(){setPanelOpen(!panelOpen);}
+function recenter(){follow=true;if(myDot)lmap.setView(myDot.getLatLng(),Math.max(lmap.getZoom(),17));}
+function copyCode(){
+  try{navigator.clipboard.writeText(myCode);}catch(e){const t=document.createElement('textarea');t.value=myCode;document.body.appendChild(t);t.select();document.execCommand('copy');t.remove();}
+  toast('Kod '+myCode+' kopiran! 📋');
+}
+function openFs(id){document.getElementById(id).style.display='flex';}
+function closeFs(id){document.getElementById(id).style.display='none';}
+document.getElementById('clan-inp').addEventListener('input',e=>e.target.value=e.target.value.toUpperCase());
+document.getElementById('clan-inp').addEventListener('keydown',e=>e.key==='Enter'&&joinClan());
+
+let tT;
+function toast(msg,type){
+  const el=document.getElementById('toast');el.textContent=msg;
+  el.className='show'+(type==='win'?' win':type===true?' err':'');
+  clearTimeout(tT);tT=setTimeout(()=>el.className='',4200);
+}
+
+// ══════════════════════════════════════════
+//  BOOT
+// ══════════════════════════════════════════
+initPlayer();
+loadCSS('https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css');
+loadScript('https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js',initMap);
+</script>
+</body>
+</html>
