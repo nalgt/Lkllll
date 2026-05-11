@@ -4,6 +4,7 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>File Share Hub</title>
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><rect width='100' height='100' rx='15' fill='%2300aa66'/><text y='75' x='15' font-size='70' fill='white'>F</text></svg>" />
   <style>
     body { font-family: Arial, sans-serif; background: #111; color: white; margin: 0; padding: 0; }
     header { background: #1e1e1e; padding: 20px; text-align: center; border-bottom: 2px solid #333; }
@@ -52,6 +53,39 @@
   </footer>
 
   <script>
+    async function loadFiles() {
+      const fileList = document.getElementById("fileList");
+      try {
+        const res = await fetch("/.netlify/functions/list");
+        const { files } = await res.json();
+        fileList.innerHTML = "";
+        if (!files.length) {
+          fileList.innerHTML = "<p style='color:gray'>Nema fajlova.</p>";
+          return;
+        }
+        for (const f of files) {
+          const div = document.createElement("div");
+          div.className = "file-item";
+          const expires = new Date(f.uploadedAt + 24 * 60 * 60 * 1000).toLocaleString();
+          const nameSpan = document.createElement("span");
+          nameSpan.textContent = f.filename;
+          const small = document.createElement("small");
+          small.style.color = "gray";
+          small.textContent = ` (briše se: ${expires})`;
+          nameSpan.appendChild(small);
+          const link = document.createElement("a");
+          link.className = "download-btn";
+          link.href = f.downloadUrl;
+          link.textContent = "Download";
+          div.appendChild(nameSpan);
+          div.appendChild(link);
+          fileList.appendChild(div);
+        }
+      } catch (err) {
+        fileList.innerHTML = "<p style='color:red'>Greška pri učitavanju fajlova.</p>";
+      }
+    }
+
     async function uploadFile() {
       const input = document.getElementById("fileInput");
       const status = document.getElementById("status");
@@ -62,30 +96,31 @@
       }
 
       const file = input.files[0];
+      status.innerText = "Uploadovanje...";
       const reader = new FileReader();
 
       reader.onload = async function(e) {
         const base64Data = e.target.result.split(",")[1];
 
-        const response = await fetch("/.netlify/functions/upload", {
-          method: "POST",
-          body: JSON.stringify({ name: file.name, data: base64Data })
-        });
+        try {
+          const response = await fetch("/.netlify/functions/upload", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ name: file.name, data: base64Data })
+          });
 
-        const result = await response.json();
-        status.innerText = "Fajl uploadovan!";
-        const fileList = document.getElementById("fileList");
-        const div = document.createElement("div");
-        div.className = "file-item";
-        div.innerHTML = `
-          <span>${file.name}</span>
-          <a class="download-btn" href="${result.link}" target="_blank">Download</a>
-        `;
-        fileList.appendChild(div);
+          if (!response.ok) throw new Error("Upload failed");
+          status.innerText = "Fajl uspešno uploadovan!";
+          await loadFiles();
+        } catch (err) {
+          status.innerText = "Greška pri uploadu: " + err.message;
+        }
       };
 
       reader.readAsDataURL(file);
     }
+
+    document.addEventListener("DOMContentLoaded", loadFiles);
   </script>
 </body>
 </html>
