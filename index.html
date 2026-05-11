@@ -1,3 +1,4 @@
+
 <!DOCTYPE html>
 <html lang="sr">
 <head>
@@ -116,7 +117,7 @@
     <div class="upload-box">
       <h2>Upload fajla</h2>
       <p>Izaberi fajl koji želiš da deliš:</p>
-      <input type="file" id="fileInput" />
+      <input type="file" id="fileInput" multiple />
       <br>
       <button onclick="uploadFile()">Upload</button>
       <p id="status"></p>
@@ -162,22 +163,30 @@
         return;
       }
 
-      const file = input.files[0];
-      const reader = new FileReader();
+      const selectedFiles = input.files;
 
-      reader.onload = function(e) {
-        files.push({
-          name: file.name,
-          data: e.target.result
-        });
+      let uploaded = 0;
 
-        localStorage.setItem('sharedFiles', JSON.stringify(files));
-        renderFiles();
+      for (let i = 0; i < selectedFiles.length; i++) {
+        const file = selectedFiles[i];
+        const reader = new FileReader();
 
-        status.innerText = 'Fajl uploadovan!';
-      };
+        reader.onload = function(e) {
+          files.push({
+            name: file.name,
+            data: e.target.result
+          });
 
-      reader.readAsDataURL(file);
+          uploaded++;
+
+          localStorage.setItem('sharedFiles', JSON.stringify(files));
+          renderFiles();
+
+          status.innerText = uploaded + ' fajlova uploadovano!';
+        };
+
+        reader.readAsDataURL(file);
+      }
     }
 
     renderFiles();
