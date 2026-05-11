@@ -1,0 +1,6 @@
+[functions]
+  directory = "netlify/functions"
+
+[[scheduled]]
+  name = "cleanup"
+  cron = "0 0 * * *" # svaki dan u ponoć
