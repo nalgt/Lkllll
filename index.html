@@ -1,0 +1,586 @@
+<!doctype html>
+<html lang="sr">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Territory AR Prototype</title>
+  <style>
+    :root {
+      --panel: rgba(16, 24, 42, 0.9);
+      --panel2: rgba(22, 31, 54, 0.9);
+      --line: rgba(255,255,255,0.08);
+      --text: #eaf0ff;
+      --muted: #9fb1d1;
+      --accent: #67e8f9;
+      --owned: rgba(103, 232, 249, 0.25);
+      --enemy: rgba(248, 113, 113, 0.22);
+      --fog: rgba(2, 6, 23, 0.82);
+      --shadow: 0 20px 60px rgba(0,0,0,0.35);
+      font-family: Inter, system-ui, -apple-system, Segoe UI, Roboto, sans-serif;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      min-height: 100vh;
+      background:
+        radial-gradient(circle at top, rgba(103,232,249,0.08), transparent 35%),
+        linear-gradient(180deg, #07101f, #050814 60%, #03050b);
+      color: var(--text);
+    }
+    .app {
+      display: grid;
+      grid-template-columns: 1.5fr 0.95fr;
+      gap: 16px;
+      padding: 16px;
+      max-width: 1500px;
+      margin: 0 auto;
+    }
+    .topbar {
+      grid-column: 1 / -1;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 14px 18px;
+      border: 1px solid var(--line);
+      background: linear-gradient(180deg, rgba(20,30,52,0.95), rgba(12,18,34,0.95));
+      border-radius: 20px;
+      box-shadow: var(--shadow);
+    }
+    .brand h1 { margin: 0; font-size: 1.1rem; }
+    .brand p { margin: 3px 0 0; color: var(--muted); font-size: 0.92rem; }
+    .pillrow { display:flex; gap:8px; flex-wrap:wrap; justify-content:flex-end; }
+    .pill {
+      padding: 8px 10px;
+      border-radius: 999px;
+      background: rgba(255,255,255,0.06);
+      border: 1px solid var(--line);
+      color: var(--text);
+      font-size: 0.86rem;
+    }
+    .panel {
+      border: 1px solid var(--line);
+      background: linear-gradient(180deg, var(--panel), rgba(8,12,22,0.92));
+      border-radius: 24px;
+      box-shadow: var(--shadow);
+      overflow: hidden;
+    }
+    .panel .head {
+      display:flex;
+      align-items:center;
+      justify-content:space-between;
+      padding: 14px 16px;
+      border-bottom: 1px solid var(--line);
+      background: rgba(255,255,255,0.02);
+    }
+    .head h2 { margin: 0; font-size: 1rem; }
+    .head span { color: var(--muted); font-size: 0.88rem; }
+
+    .mapWrap { padding: 16px; }
+    .map {
+      position: relative;
+      aspect-ratio: 1 / 1;
+      width: 100%;
+      border-radius: 24px;
+      overflow: hidden;
+      border: 1px solid var(--line);
+      background:
+        linear-gradient(to right, rgba(255,255,255,0.03) 1px, transparent 1px),
+        linear-gradient(to bottom, rgba(255,255,255,0.03) 1px, transparent 1px),
+        radial-gradient(circle at center, rgba(103,232,249,0.08), transparent 45%),
+        linear-gradient(180deg, rgba(7,11,22,0.95), rgba(10,15,28,0.95));
+      background-size: 10% 10%, 10% 10%, auto, auto;
+      box-shadow: inset 0 0 0 1px rgba(255,255,255,0.03);
+    }
+    .tile {
+      position: absolute;
+      border-radius: 14px;
+      border: 1px solid rgba(255,255,255,0.05);
+      background: rgba(255,255,255,0.04);
+    }
+    .tile.owned { background: var(--owned); border-color: rgba(103,232,249,0.35); }
+    .tile.enemy { background: var(--enemy); border-color: rgba(248,113,113,0.3); }
+    .tile.unexplored { background: rgba(2,6,23,0.48); filter: saturate(0.5); }
+    .city {
+      position: absolute;
+      width: 18px; height: 18px;
+      border-radius: 50%;
+      background: var(--accent);
+      border: 3px solid rgba(255,255,255,0.85);
+      box-shadow: 0 0 0 8px rgba(103,232,249,0.15);
+      transform: translate(-50%, -50%);
+      z-index: 4;
+    }
+    .army {
+      position: absolute;
+      width: 12px; height: 12px;
+      border-radius: 50%;
+      background: #fff;
+      box-shadow: 0 0 0 7px rgba(255,255,255,0.09);
+      transform: translate(-50%, -50%);
+      z-index: 5;
+    }
+    .fog {
+      position:absolute; inset:0;
+      background: radial-gradient(circle at var(--x, 50%) var(--y, 50%), transparent 0 28%, var(--fog) 60%);
+      pointer-events:none;
+      z-index: 3;
+    }
+    .ring {
+      position:absolute;
+      border-radius:50%;
+      border: 2px dashed rgba(103,232,249,0.6);
+      transform: translate(-50%,-50%);
+      z-index: 4;
+      pointer-events:none;
+    }
+    .controls { display:grid; gap: 12px; padding: 16px; }
+    .card {
+      border: 1px solid var(--line);
+      background: var(--panel2);
+      border-radius: 20px;
+      padding: 14px;
+    }
+    .stat { display:flex; justify-content:space-between; gap: 10px; margin: 6px 0; color: var(--muted); font-size: 0.93rem; }
+    .stat strong { color: var(--text); }
+    button {
+      width: 100%;
+      border: 0;
+      border-radius: 16px;
+      padding: 12px 14px;
+      margin-top: 8px;
+      background: linear-gradient(180deg, rgba(103,232,249,0.95), rgba(56,189,248,0.95));
+      color: #04111f;
+      font-weight: 800;
+      cursor: pointer;
+    }
+    button.secondary { background: rgba(255,255,255,0.08); color: var(--text); border: 1px solid var(--line); }
+    button:disabled { opacity: 0.45; cursor: not-allowed; }
+    input, select {
+      width: 100%;
+      border-radius: 14px;
+      border: 1px solid var(--line);
+      background: rgba(255,255,255,0.06);
+      color: var(--text);
+      padding: 11px 12px;
+      outline: none;
+      margin-top: 8px;
+    }
+    .log {
+      max-height: 240px;
+      overflow:auto;
+      font-size: 0.9rem;
+      color: var(--muted);
+      line-height: 1.45;
+    }
+    .log div { padding: 6px 0; border-bottom: 1px solid rgba(255,255,255,0.04); }
+    .small { color: var(--muted); font-size: 0.85rem; }
+    .bar {
+      height: 10px; border-radius: 999px; background: rgba(255,255,255,0.08); overflow:hidden; margin-top: 8px;
+    }
+    .bar > div { height:100%; width:0%; background: linear-gradient(90deg, #34d399, #67e8f9); }
+    .tabs { display:flex; gap: 8px; flex-wrap:wrap; }
+    .tab { padding: 8px 10px; border-radius: 999px; border:1px solid var(--line); background: rgba(255,255,255,0.05); cursor:pointer; }
+    .tab.active { background: rgba(103,232,249,0.18); border-color: rgba(103,232,249,0.35); }
+    .hidden { display:none; }
+    @media (max-width: 1050px) { .app { grid-template-columns: 1fr; } }
+  </style>
+</head>
+<body>
+  <div class="app">
+    <div class="topbar">
+      <div class="brand">
+        <h1>Territory AR Prototype</h1>
+        <p>Starter verzija za mapu, teritoriju, civile, timove i research.</p>
+      </div>
+      <div class="pillrow" id="pillrow"></div>
+    </div>
+
+    <section class="panel">
+      <div class="head">
+        <h2>Mapa i teritorija</h2>
+        <span id="modeLabel">Map mode</span>
+      </div>
+      <div class="mapWrap">
+        <div class="map" id="map">
+          <div class="fog" id="fog"></div>
+          <div class="ring" id="ring"></div>
+        </div>
+      </div>
+    </section>
+
+    <aside class="controls panel">
+      <div class="card">
+        <div class="tabs">
+          <div class="tab active" data-tab="stats">Stats</div>
+          <div class="tab" data-tab="research">Research</div>
+          <div class="tab" data-tab="teams">Timovi</div>
+          <div class="tab" data-tab="ar">AR</div>
+        </div>
+      </div>
+
+      <div class="card tabpage" id="stats">
+        <h2 style="margin:0 0 10px">Stanje igrača</h2>
+        <div class="stat"><span>Civili</span><strong id="civilians">0</strong></div>
+        <div class="stat"><span>Vojnici</span><strong id="soldiers">0</strong></div>
+        <div class="stat"><span>Novac</span><strong id="money">0</strong></div>
+        <div class="stat"><span>Hrana</span><strong id="food">0</strong></div>
+        <div class="stat"><span>Drvo</span><strong id="wood">0</strong></div>
+        <div class="stat"><span>Stone</span><strong id="stone">0</strong></div>
+        <div class="stat"><span>Research poeni</span><strong id="rp">0</strong></div>
+        <div class="stat"><span>Teritorija</span><strong id="tiles">0</strong></div>
+        <div class="stat"><span>Radijus baze</span><strong id="radius">50 m</strong></div>
+        <div class="bar"><div id="progressBar"></div></div>
+        <button id="recruitBtn">Regrutuj civila (svakih 5 min)</button>
+        <button id="expandBtn">Pošalji vojsku da proširi teritoriju</button>
+        <button class="secondary" id="scanBtn">Istraži okolinu</button>
+      </div>
+
+      <div class="card tabpage hidden" id="research">
+        <h2 style="margin:0 0 10px">Research</h2>
+        <label class="small">Izaberi tehnologiju</label>
+        <select id="researchSelect">
+          <option value="scouting">Scouting Drones</option>
+          <option value="economy">Economy Upgrade</option>
+          <option value="military">Military Doctrine</option>
+          <option value="construction">Construction Tech</option>
+          <option value="fog">Fog Mapping</option>
+        </select>
+        <button id="researchBtn">Pokreni research</button>
+        <p class="small">Research troši civile, novac i resurse. Jači research ubrzava osvajanje i otkrivanje mape.</p>
+      </div>
+
+      <div class="card tabpage hidden" id="teams">
+        <h2 style="margin:0 0 10px">Timovi</h2>
+        <label class="small">Ime tima</label>
+        <input id="teamName" placeholder="npr. Alpha" />
+        <button id="createTeamBtn">Napravi / pridruži se timu</button>
+        <div class="stat"><span>Tvoj tim</span><strong id="myTeam">Solo</strong></div>
+        <div class="stat"><span>Saveznici</span><strong id="allies">0</strong></div>
+        <p class="small">U ovoj starter verziji timovi su lokalno simulirani, ali struktura je spremna za server.</p>
+      </div>
+
+      <div class="card tabpage hidden" id="ar">
+        <h2 style="margin:0 0 10px">AR mode</h2>
+        <div class="stat"><span>AR stanje</span><strong id="arState">Isključen</strong></div>
+        <button id="toggleArBtn">Uključi / isključi AR</button>
+        <p class="small">Ovo je AR placeholder ekran za civile, baze i teritoriju na kameri.</p>
+      </div>
+
+      <div class="card">
+        <h2 style="margin:0 0 10px">Dnevnik</h2>
+        <div class="log" id="log"></div>
+      </div>
+    </aside>
+  </div>
+
+  <script>
+    const state = {
+      ar: false,
+      team: 'Solo',
+      civilians: 6,
+      soldiers: 0,
+      money: 120,
+      food: 80,
+      wood: 60,
+      stone: 35,
+      rp: 0,
+      ownedTiles: new Set(),
+      exploredTiles: new Set(),
+      research: { scouting: 0, economy: 0, military: 0, construction: 0, fog: 0 },
+      recruitCooldown: 0,
+      baseRadius: 50,
+      arPoints: [],
+      log: []
+    };
+
+    const map = document.getElementById('map');
+    const fog = document.getElementById('fog');
+    const ring = document.getElementById('ring');
+    const pillrow = document.getElementById('pillrow');
+    const logEl = document.getElementById('log');
+
+    const els = {
+      civilians: document.getElementById('civilians'),
+      soldiers: document.getElementById('soldiers'),
+      money: document.getElementById('money'),
+      food: document.getElementById('food'),
+      wood: document.getElementById('wood'),
+      stone: document.getElementById('stone'),
+      rp: document.getElementById('rp'),
+      tiles: document.getElementById('tiles'),
+      radius: document.getElementById('radius'),
+      progressBar: document.getElementById('progressBar'),
+      myTeam: document.getElementById('myTeam'),
+      allies: document.getElementById('allies'),
+      arState: document.getElementById('arState'),
+      modeLabel: document.getElementById('modeLabel'),
+      recruitBtn: document.getElementById('recruitBtn'),
+      expandBtn: document.getElementById('expandBtn'),
+      scanBtn: document.getElementById('scanBtn'),
+      researchBtn: document.getElementById('researchBtn'),
+      createTeamBtn: document.getElementById('createTeamBtn'),
+      toggleArBtn: document.getElementById('toggleArBtn'),
+      researchSelect: document.getElementById('researchSelect'),
+      teamName: document.getElementById('teamName'),
+    };
+
+    function pushLog(text) {
+      const time = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+      state.log.unshift(`[${time}] ${text}`);
+      state.log = state.log.slice(0, 40);
+      renderLog();
+    }
+
+    function renderLog() {
+      logEl.innerHTML = state.log.map(line => `<div>${line}</div>`).join('');
+    }
+
+    function tileKey(x, y) { return `${x},${y}`; }
+
+    function buildMapGrid() {
+      map.querySelectorAll('.tile, .city, .army').forEach(n => n.remove());
+      const size = 10;
+      const gap = 2;
+      const cell = 100 / size;
+      for (let y = 0; y < size; y++) {
+        for (let x = 0; x < size; x++) {
+          const el = document.createElement('div');
+          el.className = 'tile';
+          const key = tileKey(x, y);
+          if (state.ownedTiles.has(key)) el.classList.add('owned');
+          else if (Math.abs(x - 4.5) <= 1 && Math.abs(y - 4.5) <= 1) el.classList.add('enemy');
+          if (!state.exploredTiles.has(key)) el.classList.add('unexplored');
+          el.style.left = `calc(${x * cell}% + ${gap}px)`;
+          el.style.top = `calc(${y * cell}% + ${gap}px)`;
+          el.style.width = `calc(${cell}% - ${gap * 2}px)`;
+          el.style.height = `calc(${cell}% - ${gap * 2}px)`;
+          map.appendChild(el);
+        }
+      }
+
+      const city = document.createElement('div');
+      city.className = 'city';
+      city.style.left = '50%';
+      city.style.top = '50%';
+      map.appendChild(city);
+
+      state.arPoints.forEach(p => {
+        const c = document.createElement('div');
+        c.className = 'army';
+        c.style.left = `${p.x}%`;
+        c.style.top = `${p.y}%`;
+        map.appendChild(c);
+      });
+
+      const ringSize = Math.min(80, 20 + state.baseRadius / 2);
+      ring.style.width = `${ringSize}%`;
+      ring.style.height = `${ringSize}%`;
+      ring.style.left = '50%';
+      ring.style.top = '50%';
+      fog.style.setProperty('--x', '50%');
+      fog.style.setProperty('--y', '50%');
+    }
+
+    function exploredCount() { return state.exploredTiles.size; }
+
+    function refreshUI() {
+      els.civilians.textContent = state.civilians;
+      els.soldiers.textContent = state.soldiers;
+      els.money.textContent = state.money;
+      els.food.textContent = state.food;
+      els.wood.textContent = state.wood;
+      els.stone.textContent = state.stone;
+      els.rp.textContent = state.rp;
+      els.tiles.textContent = state.ownedTiles.size;
+      els.radius.textContent = `${state.baseRadius} m`;
+      els.myTeam.textContent = state.team;
+      els.allies.textContent = state.team === 'Solo' ? '0' : '4';
+      els.arState.textContent = state.ar ? 'Uključen' : 'Isključen';
+      els.modeLabel.textContent = state.ar ? 'AR mode' : 'Map mode';
+      els.progressBar.style.width = `${Math.min(100, (exploredCount() / 100) * 100)}%`;
+
+      pillrow.innerHTML = [
+        `Teritorija: ${state.ownedTiles.size}`,
+        `Istraženo: ${exploredCount()}`,
+        `Tim: ${state.team}`,
+        `AR: ${state.ar ? 'On' : 'Off'}`,
+      ].map(t => `<div class="pill">${t}</div>`).join('');
+
+      els.recruitBtn.disabled = state.recruitCooldown > 0 || state.civilians <= 0;
+      els.recruitBtn.textContent = state.recruitCooldown > 0
+        ? `Regrutovanje za ${state.recruitCooldown}s`
+        : 'Regrutuj civila (svakih 5 min)';
+    }
+
+    function unlockAreaAroundBase(radiusTiles = 1) {
+      const center = 4;
+      for (let y = center - radiusTiles; y <= center + radiusTiles; y++) {
+        for (let x = center - radiusTiles; x <= center + radiusTiles; x++) {
+          if (x >= 0 && x < 10 && y >= 0 && y < 10) {
+            state.exploredTiles.add(tileKey(x, y));
+          }
+        }
+      }
+    }
+
+    function claimStartingTerritory() {
+      for (let y = 3; y <= 5; y++) {
+        for (let x = 3; x <= 5; x++) {
+          state.ownedTiles.add(tileKey(x, y));
+          state.exploredTiles.add(tileKey(x, y));
+        }
+      }
+    }
+
+    function canAfford(cost) {
+      return state.civilians >= cost.civilians && state.money >= cost.money && state.food >= cost.food && state.wood >= cost.wood && state.stone >= cost.stone;
+    }
+
+    function pay(cost) {
+      state.civilians -= cost.civilians;
+      state.money -= cost.money;
+      state.food -= cost.food;
+      state.wood -= cost.wood;
+      state.stone -= cost.stone;
+    }
+
+    function recruitCivilian() {
+      if (state.recruitCooldown > 0) return;
+      if (state.civilians <= 0) {
+        pushLog('Nema slobodnih civila za regrutaciju.');
+        return;
+      }
+      state.civilians -= 1;
+      state.soldiers += 1;
+      state.recruitCooldown = 300;
+      pushLog('Jedan civil je regrutovan u vojnika.');
+      refreshUI();
+    }
+
+    function expandTerritory() {
+      if (state.soldiers <= 0) {
+        pushLog('Nema vojnika za širenje teritorije.');
+        return;
+      }
+      const targets = [['5,2'], ['6,4'], ['4,6'], ['2,4'], ['6,6']];
+      let gained = 0;
+      for (const [key] of targets) {
+        if (!state.ownedTiles.has(key)) {
+          state.ownedTiles.add(key);
+          state.exploredTiles.add(key);
+          gained += 1;
+        }
+      }
+      state.food = Math.max(0, state.food - 2);
+      state.money += 5;
+      pushLog(`Teritorija proširena. Dobijeno ${gained} novih polja.`);
+      refreshUI();
+      buildMapGrid();
+    }
+
+    function runResearch(type) {
+      const cost = {
+        scouting: { civilians: 2, money: 30, food: 10, wood: 10, stone: 5 },
+        economy: { civilians: 1, money: 45, food: 5, wood: 5, stone: 0 },
+        military: { civilians: 2, money: 40, food: 10, wood: 15, stone: 10 },
+        construction: { civilians: 1, money: 35, food: 5, wood: 20, stone: 10 },
+        fog: { civilians: 2, money: 55, food: 10, wood: 10, stone: 15 },
+      }[type];
+
+      if (!canAfford(cost)) {
+        pushLog('Nedovoljno resursa za research.');
+        return;
+      }
+      pay(cost);
+      state.research[type] += 1;
+      state.rp += 10;
+      if (type === 'scouting') {
+        unlockAreaAroundBase(2);
+        state.baseRadius += 5;
+      } else if (type === 'economy') {
+        state.money += 40;
+        state.food += 20;
+      } else if (type === 'military') {
+        state.soldiers += 2;
+      } else if (type === 'construction') {
+        state.wood += 30;
+        state.stone += 20;
+      } else if (type === 'fog') {
+        for (let i = 0; i < 8; i++) state.exploredTiles.add(tileKey(i % 10, Math.floor(i / 2)));
+      }
+      pushLog(`Research završen: ${els.researchSelect.options[els.researchSelect.selectedIndex].text}.`);
+      refreshUI();
+      buildMapGrid();
+    }
+
+    function toggleAR() {
+      state.ar = !state.ar;
+      if (state.ar) {
+        state.arPoints = [
+          { x: 35, y: 40 },
+          { x: 60, y: 48 },
+          { x: 44, y: 68 },
+        ];
+        pushLog('AR mode uključen. Civili su prikazani oko baze.');
+      } else {
+        state.arPoints = [];
+        pushLog('AR mode isključen.');
+      }
+      refreshUI();
+      buildMapGrid();
+    }
+
+    function createTeam() {
+      const name = els.teamName.value.trim();
+      if (!name) {
+        pushLog('Upiši ime tima.');
+        return;
+      }
+      state.team = name;
+      pushLog(`Tim postavljen na: ${name}.`);
+      refreshUI();
+    }
+
+    document.querySelectorAll('.tab').forEach(tab => {
+      tab.addEventListener('click', () => {
+        document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+        document.querySelectorAll('.tabpage').forEach(p => p.classList.add('hidden'));
+        tab.classList.add('active');
+        document.getElementById(tab.dataset.tab).classList.remove('hidden');
+      });
+    });
+
+    els.recruitBtn.addEventListener('click', recruitCivilian);
+    els.expandBtn.addEventListener('click', expandTerritory);
+    els.scanBtn.addEventListener('click', () => {
+      unlockAreaAroundBase(3);
+      pushLog('Okolina je istražena oko baze.');
+      refreshUI();
+      buildMapGrid();
+    });
+    els.researchBtn.addEventListener('click', () => runResearch(els.researchSelect.value));
+    els.createTeamBtn.addEventListener('click', createTeam);
+    els.toggleArBtn.addEventListener('click', toggleAR);
+
+    claimStartingTerritory();
+    unlockAreaAroundBase(2);
+    pushLog('Starter projekat je pokrenut.');
+    pushLog('Dobio si početnu bazu, teritoriju i prve civile.');
+    buildMapGrid();
+    refreshUI();
+
+    setInterval(() => {
+      if (state.recruitCooldown > 0) state.recruitCooldown -= 1;
+      if (Math.random() < 0.35) {
+        state.money += 2;
+        state.food += 1;
+      }
+      if (Math.random() < 0.12) {
+        state.exploredTiles.add(tileKey(Math.floor(Math.random() * 10), Math.floor(Math.random() * 10)));
+      }
+      refreshUI();
+      buildMapGrid();
+    }, 1000);
+  </script>
+</body>
+</html>
